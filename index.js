@@ -1,21 +1,22 @@
-const express = require('express');
-const cors = require('cors');
-const pool = require('./db');
+import express from "express";
+import cors from "cors";
+import pkg from "pg";
+const { Pool } = pkg;
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Endpoint de prueba
-app.get('/usuarios', async (req, res) => {
-    try {
-        const { rows } = await pool.query('SELECT * FROM usuarios');
-        res.json(rows);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Error al obtener usuarios' });
-    }
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL, // Railway te da esta variable
+  ssl: { rejectUnauthorized: false }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+app.get("/usuarios", async (req, res) => {
+  const result = await pool.query("SELECT * FROM usuarios");
+  res.json(result.rows);
+});
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Servidor corriendo");
+});

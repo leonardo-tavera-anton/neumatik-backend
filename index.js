@@ -28,6 +28,7 @@ app.get("/", (req, res) => {
       <li><a href="/usuarios">/usuarios</a></li>
       <li><a href="/categorias">/categorias</a></li>
       <li><a href="/publicaciones">/publicaciones</a></li>
+      <li><a href="/productos">/productos</a></li>
       <!-- ... y el resto de tablas ... -->
     </ul>
     <p>Haga click en cualquier enlace para ver los datos por tabla</p>

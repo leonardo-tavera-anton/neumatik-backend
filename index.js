@@ -17,16 +17,18 @@ app.use(express.json());
 // MENÚ INICIO
 // ------------------------
 app.get("/", (req, res) => {
-  res.send(`
-    <h1>Backend Neumatik (Autopartes)</h1>
-    <h3>Rutas de la API (para Flutter):</h3>
-    <ul>
-      <li><a href="/api/publicaciones_autopartes">/api/publicaciones_autopartes</a> (Listado principal de la App)</li>
-    </ul>
-    <h3>Rutas Simples de Tabla:</h3>
-    <ul>
-        <li><a href="/usuarios">/usuarios</a></li> (<em>lista de usuarios</em>)
-        <li><a href="/categorias">/categorias</a></li> (</em>categorias de autopartes</em>)
+  res.send(`
+    <h1>Backend Neumatik (Autopartes)</h1>
+    Este es el backend para la aplicación de venta de autopartes Neumatik.<br/>
+    Desarrollado con Node.js, Express y PostgreSQL.<br/><br/>
+    <h3>Rutas de la API (para Flutter):</h3>
+    <ul>
+        <li><a href="/api/publicaciones_autopartes">/api/publicaciones_autopartes</a> (Listado principal de la App)</li>
+    </ul>
+    <h3>Rutas Simples de Tabla:</h3>
+    <ul>
+        <li><a href="/usuarios">/usuarios</a></li> (<em>lista de usuarios</em>)
+        <li><a href="/categorias">/categorias</a></li> (</em>categorias de autopartes</em>)
         <li><a href="/marcas_vehiculo">/Marcas</a></li> (<em>marcas de vehiculos</em>)
         <li><a href="/modelos_vehiculo">/Modelos</a></li> (<em>modelos de vehiculos</em>)
         <li><a href="/productos">/productos</a></li> (<em>todas las autopartes</em>)
@@ -38,9 +40,10 @@ app.get("/", (req, res) => {
         <li><a href="/reviews">/Reviews</a></li> (<em>reseñas de usuarios</em>)    
         <li><a href="/analisis_ia">/Analisis IA</a></li> (<em>resultados del análisis IA</em>)
         
-    </ul>
-    <p>Haga click en cualquier enlace para ver los datos por tabla</p>
-  `);
+    </ul>
+    <p>Haga click en cualquier enlace para ver los datos por tabla</p>
+    (<p>Desarrollado por leo 2025</p>)
+ `);
 });
 
 // -------------------------------------------------------

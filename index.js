@@ -25,11 +25,19 @@ app.get("/", (req, res) => {
     </ul>
     <h3>Rutas Simples de Tabla:</h3>
     <ul>
-      <li><a href="/usuarios">/usuarios</a></li>
-      <li><a href="/categorias">/categorias</a></li>
-      <li><a href="/publicaciones">/publicaciones</a></li>
-      <li><a href="/productos">/productos</a></li>
-      <!-- ... y el resto de tablas ... -->
+        <li><a href="/usuarios">/usuarios</a></li> (<em>lista de usuarios</em>)
+        <li><a href="/categorias">/categorias</a></li> (</em>categorias de autopartes</em>)
+        <li><a href="/marcas_vehiculo">/Marcas</a></li> (<em>marcas de vehiculos</em>)
+        <li><a href="/modelos_vehiculo">/Modelos</a></li> (<em>modelos de vehiculos</em>)
+        <li><a href="/productos">/productos</a></li> (<em>todas las autopartes</em>)
+        <li><a href="/compatibilidad_producto">/Compatibilidad</a></li> (<em>compatibilidad con productos</em>)
+        <li><a href="/publicaciones">/publicaciones</a></li> (<em>todas las publicaciones</em>)
+        <li><a href="/fotos_publicacion">/Fotos</a></li> (<em>fotos de las publicaciones</em>)
+        <li><a href="/ordenes">/Ordenes</a></li> (<em>osea el carrito de compra</em>)
+        <li><a href="/detalles_orden">/Detalles Orden</a></li> (<em>detalles del carrito</em>)
+        <li><a href="/reviews">/Reviews</a></li> (<em>reseñas de usuarios</em>)    
+        <li><a href="/analisis_ia">/Analisis IA</a></li> (<em>resultados del análisis IA</em>)
+        
     </ul>
     <p>Haga click en cualquier enlace para ver los datos por tabla</p>
   `);

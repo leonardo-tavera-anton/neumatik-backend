@@ -1,32 +1,37 @@
 import express from "express";
 import pool from "./db.js"; // Importa la conexión a la DB
 import dotenv from "dotenv";
+import cors from "cors"; // <--- 1. Importa el módulo CORS
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ------------------------
+// MIDDLEWARE
+// ------------------------
+app.use(cors()); // <--- 2. Habilita CORS para permitir solicitudes desde Flutter Web
 app.use(express.json());
 
 // ------------------------
 // MENÚ INICIO
 // ------------------------
 app.get("/", (req, res) => {
-  res.send(`
-    <h1>Backend Neumatik (Autopartes)</h1>
-    <h3>Rutas de la API (para Flutter):</h3>
-    <ul>
-      <li><a href="/api/publicaciones_autopartes">/api/publicaciones_autopartes</a> (Listado principal de la App)</li>
-    </ul>
-    <h3>Rutas Simples de Tabla:</h3>
-    <ul>
-      <li><a href="/usuarios">/usuarios</a></li>
-      <li><a href="/categorias">/categorias</a></li>
-      <li><a href="/publicaciones">/publicaciones</a></li>
-      <!-- ... y el resto de tablas ... -->
-    </ul>
-    <p>Haga click en cualquier enlace para ver los datos por tabla</p>
-`);
+  res.send(`
+    <h1>Backend Neumatik (Autopartes)</h1>
+    <h3>Rutas de la API (para Flutter):</h3>
+    <ul>
+      <li><a href="/api/publicaciones_autopartes">/api/publicaciones_autopartes</a> (Listado principal de la App)</li>
+    </ul>
+    <h3>Rutas Simples de Tabla:</h3>
+    <ul>
+      <li><a href="/usuarios">/usuarios</a></li>
+      <li><a href="/categorias">/categorias</a></li>
+      <li><a href="/publicaciones">/publicaciones</a></li>
+      <!-- ... y el resto de tablas ... -->
+    </ul>
+    <p>Haga click en cualquier enlace para ver los datos por tabla</p>
+  `);
 });
 
 // -------------------------------------------------------

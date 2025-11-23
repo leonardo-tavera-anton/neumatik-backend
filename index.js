@@ -42,7 +42,7 @@ app.get("/", (req, res) => {
         
     </ul>
     <p>Haga click en cualquier enlace para ver los datos por tabla</p>
-    <p>*Desarrollado por leonardo 2025*</p>
+    <p>*2025 - Desarrollado por Leonardo Tavera Anton*</p>
  `);
 });
 

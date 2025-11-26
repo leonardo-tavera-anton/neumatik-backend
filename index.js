@@ -58,6 +58,7 @@ app.get("/", (req, res) => {
     <ul>
         <li><a href="/api/publicaciones_autopartes">/api/publicaciones_autopartes</a> (Listado principal de la App)</li>
         <li><strong>POST /api/registro</strong> (Ruta de Registro de Usuarios)</li> 
+        <li><strong>POST /api/auth/login</strong> (Ruta de Inicio de Sesión)</li>
         <li><strong>GET /api/usuario/perfil</strong> (Ruta Protegida - Requiere JWT)</li> 
     </ul>
     <h3>Rutas Simples de Tabla:</h3>
@@ -136,6 +137,57 @@ app.post('/api/registro', async (req, res) => {
     } catch (err) {
         console.error("Error al registrar usuario:", err.stack);
         res.status(500).json({ error: 'Error interno del servidor al procesar el registro.' });
+    }
+});
+
+// -------------------------------------------------------
+// ENDPOINT DE INICIO DE SESIÓN (POST /api/auth/login)
+// -------------------------------------------------------
+app.post('/api/auth/login', async (req, res) => {
+    const { correo, contrasena } = req.body;
+
+    if (!correo || !contrasena) {
+        return res.status(400).json({ error: 'Faltan campos obligatorios: correo y contraseña.' });
+    }
+
+    try {
+        // 1. Buscar usuario por correo y obtener el hash de la contraseña
+        const userResult = await pool.query('SELECT id, contrasena_hash, es_vendedor FROM usuarios WHERE correo = $1', [correo]);
+        
+        if (userResult.rows.length === 0) {
+            // Mensaje genérico por seguridad (no revela si el correo existe o no)
+            return res.status(401).json({ error: 'Credenciales inválidas (correo o contraseña incorrectos).' });
+        }
+
+        const user = userResult.rows[0];
+        
+        // 2. Comparar la contraseña ingresada con el hash almacenado
+        const isPasswordValid = await bcrypt.compare(contrasena, user.contrasena_hash);
+
+        if (!isPasswordValid) {
+            return res.status(401).json({ error: 'Credenciales inválidas (correo o contraseña incorrectos).' });
+        }
+
+        // 3. Contraseña válida, generar JWT
+        const token = jwt.sign(
+            { id: user.id, correo: correo, esVendedor: user.es_vendedor },
+            JWT_SECRET,
+            { expiresIn: '7d' } // El token expira en 7 días
+        );
+
+        // 4. Actualizar última_sesion y devolver respuesta
+        await pool.query('UPDATE usuarios SET ultima_sesion = NOW() WHERE id = $1', [user.id]);
+
+        res.json({
+            token: token,
+            user_id: user.id,
+            es_vendedor: user.es_vendedor,
+            mensaje: 'Inicio de sesión exitoso. Bienvenido.'
+        });
+
+    } catch (err) {
+        console.error("Error al iniciar sesión:", err.stack);
+        res.status(500).json({ error: 'Error interno del servidor al procesar el inicio de sesión.' });
     }
 });
 

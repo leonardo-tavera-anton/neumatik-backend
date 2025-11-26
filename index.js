@@ -2,18 +2,49 @@ import express from "express";
 import pool from "./db.js"; // Importa la conexión a la DB
 import dotenv from "dotenv";
 import cors from "cors"; 
-import bcrypt from "bcrypt"; // Importante para hashear contraseñas
+import bcrypt from "bcrypt"; 
+import jwt from "jsonwebtoken"; // Importamos la librería JWT
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 🛑 ¡IMPORTANTE DE SEGURIDAD! 
+// La clave de producción DEBE configurarse como variable de entorno (process.env.JWT_SECRET)
+// El valor de la derecha ('mi_clave_secreta...') solo se usa como FALLBACK para PRUEBAS LOCALES.
+const JWT_SECRET = process.env.JWT_SECRET || 'mi_clave_secreta_super_segura_2025'; 
+
 // ------------------------
 // MIDDLEWARE
 // ------------------------
 app.use(cors()); 
 app.use(express.json());
+
+// Middleware para verificar el token (para rutas protegidas)
+const verificarToken = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).json({ error: 'Acceso denegado. No se proporcionó token.' });
+    }
+
+    // El header es típicamente "Bearer <token>"
+    const token = authHeader.split(' ')[1]; 
+    if (!token) {
+        return res.status(401).json({ error: 'Formato de token inválido.' });
+    }
+
+    try {
+        // Verifica y decodifica el token usando la clave secreta
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded; // Adjuntamos los datos del usuario al request
+        next(); // Continuamos a la ruta
+    } catch (err) {
+        console.error("Error de verificación de token:", err);
+        return res.status(403).json({ error: 'Token inválido o expirado.' });
+    }
+};
+
 
 // ------------------------
 // MENÚ INICIO (Ruta Raíz)
@@ -27,6 +58,7 @@ app.get("/", (req, res) => {
     <ul>
         <li><a href="/api/publicaciones_autopartes">/api/publicaciones_autopartes</a> (Listado principal de la App)</li>
         <li><strong>POST /api/registro</strong> (Ruta de Registro de Usuarios)</li> 
+        <li><strong>GET /api/usuario/perfil</strong> (Ruta Protegida - Requiere JWT)</li> 
     </ul>
     <h3>Rutas Simples de Tabla:</h3>
     <ul>
@@ -54,27 +86,23 @@ app.get("/", (req, res) => {
 // ENDPOINT DE REGISTRO DE USUARIO (POST /api/registro)
 // -------------------------------------------------------
 app.post('/api/registro', async (req, res) => {
-    // Las claves deben ser 'nombre', 'apellido', 'correo', 'contrasena', 'telefono', 'es_vendedor'
     const { nombre, apellido, correo, contrasena, telefono, es_vendedor } = req.body;
 
-    // 1. Validación básica de campos requeridos
     if (!correo || !contrasena || !nombre) {
         return res.status(400).json({ error: 'Faltan campos obligatorios: correo, contraseña y nombre.' });
     }
 
     try {
-        // 2. Hash de la contraseña (ESENCIAL para seguridad)
         const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(contrasena, saltRounds);
 
-        // 3. Verificar si el usuario ya existe
+        // 1. Verificar si el usuario ya existe
         const userCheck = await pool.query('SELECT id FROM usuarios WHERE correo = $1', [correo]);
         if (userCheck.rows.length > 0) {
-            // Devuelve JSON 409 Conflict. Flutter lo capturará como error.
             return res.status(409).json({ error: 'El correo electrónico ya está registrado.' });
         }
 
-        // 4. Insertar nuevo usuario
+        // 2. Insertar nuevo usuario
         const newUserQuery = `
             INSERT INTO usuarios (nombre, apellido, correo, contrasena_hash, telefono, es_vendedor, creado_en, ultima_sesion)
             VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
@@ -84,31 +112,62 @@ app.post('/api/registro', async (req, res) => {
             nombre,
             apellido || null, 
             correo,
-            hashedPassword, // Almacena el hash, no la contraseña original
+            hashedPassword, 
             telefono || null,
             es_vendedor || false, 
         ]);
 
         const newUser = newUserResult.rows[0];
+        
+        // 3. GENERAR EL JSON WEB TOKEN (JWT)
+        const token = jwt.sign(
+            { id: newUser.id, correo: newUser.correo, esVendedor: newUser.es_vendedor },
+            JWT_SECRET,
+            { expiresIn: '7d' } // El token expira en 7 días
+        );
 
-        // 5. Registro exitoso (201 Created). Devolvemos el objeto del usuario y un token.
-        // La estructura de respuesta es vital para el modelo UsuarioAutenticado en Flutter
+        // 4. Registro exitoso (201 Created)
         res.status(201).json({
             usuario: newUser,
-            token: `TOKEN_PARA_USUARIO_${newUser.id}`, // Token simulado
+            token: token, // Devolvemos el JWT real
             mensaje: 'Usuario registrado exitosamente.',
         });
 
     } catch (err) {
         console.error("Error al registrar usuario:", err.stack);
-        // Error interno del servidor (500)
         res.status(500).json({ error: 'Error interno del servidor al procesar el registro.' });
+    }
+});
+
+// -------------------------------------------------------
+// ENDPOINT PROTEGIDO DE EJEMPLO (Solo accesible con un JWT válido)
+// -------------------------------------------------------
+app.get('/api/usuario/perfil', verificarToken, async (req, res) => {
+    // req.user contiene los datos decodificados del token (id, correo, esVendedor)
+    try {
+        const userId = req.user.id;
+        const result = await pool.query(
+            'SELECT id, nombre, apellido, correo, telefono, es_vendedor FROM usuarios WHERE id = $1', 
+            [userId]
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado.' });
+        }
+        
+        res.json({ 
+            perfil: result.rows[0],
+            mensaje: "Datos de perfil obtenidos exitosamente con JWT."
+        });
+    } catch (err) {
+        console.error("Error al obtener perfil:", err.stack);
+        res.status(500).json({ error: 'Error al cargar los datos del perfil.' });
     }
 });
 
 
 // -------------------------------------------------------
-// ENDPOINT PRINCIPAL PARA EL FRONTEND DE FLUTTER (Listado)
+// ENDPOINT PRINCIPAL PARA EL FRONTEND DE FLUTTER (Listado - Aún es público)
 // -------------------------------------------------------
 app.get('/api/publicaciones_autopartes', async (req, res) => {
     try {

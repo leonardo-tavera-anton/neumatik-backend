@@ -16,7 +16,32 @@ const JWT_SECRET = process.env.JWT_SECRET || 'mi_clave_secreta_super_segura_2025
 // ------------------------
 // MIDDLEWARE
 // ------------------------
-app.use(cors()); 
+
+// --- CONFIGURACIÓN DE CORS (Cross-Origin Resource Sharing) ---
+// Lista de orígenes permitidos (Whitelist).
+const allowedOrigins = [
+  'https://neumatik-frontend.web.app', // Tu futuro dominio de producción
+  'http://localhost:8080',            // El propio backend (si aplica)
+  // Orígenes para el desarrollo local de Flutter Web (pueden variar de puerto)
+  'http://localhost',
+  'http://127.0.0.1',
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Permitir solicitudes sin origen (como Postman o apps móviles nativas)
+    // y las que están en la lista blanca.
+    if (!origin || allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+      callback(null, true);
+    } else {
+      callback(new Error('No permitido por la política de CORS'));
+    }
+  },
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Métodos HTTP permitidos
+  credentials: true, // Permitir el envío de cookies y encabezados de autorización
+};
+
+app.use(cors(corsOptions)); // ¡Usa las opciones de CORS configuradas!
 app.use(express.json());
 
 // Middleware para verificar el token (para rutas protegidas)

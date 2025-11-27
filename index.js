@@ -228,6 +228,93 @@ app.get('/api/usuario/perfil', verificarToken, async (req, res) => {
     }
 });
 
+// -------------------------------------------------------
+// ENDPOINT PARA CREAR UNA NUEVA PUBLICACIÓN (PROTEGIDO)
+// -------------------------------------------------------
+app.post('/api/publicaciones', verificarToken, async (req, res) => {
+    // Obtenemos el ID del vendedor desde el token decodificado. ¡Más seguro!
+    const id_vendedor = req.user.id; 
+
+    const {
+        nombre_parte,
+        numero_oem,
+        id_categoria,
+        precio,
+        condicion,
+        stock,
+        ubicacion_ciudad,
+        descripcion_corta, // Campo opcional
+        foto_url, // URL de la foto principal
+    } = req.body;
+
+    // Validación de campos obligatorios
+    if (!nombre_parte || !id_categoria || !precio || !condicion || !stock || !ubicacion_ciudad) {
+        return res.status(400).json({ error: 'Faltan campos obligatorios para crear la publicación.' });
+    }
+
+    // Iniciamos una transacción para asegurar la integridad de los datos
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN'); // Iniciar transacción
+
+        // 1. Insertar en la tabla `productos`
+        const productoQuery = `
+            INSERT INTO productos (id_categoria, nombre_parte, numero_oem, descripcion_larga)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id;
+        `;
+        const productoResult = await client.query(productoQuery, [
+            id_categoria,
+            nombre_parte,
+            numero_oem || '', // Usar string vacío si es null
+            '', // descripcion_larga (puedes añadirla al formulario si quieres)
+        ]);
+        const id_producto_nuevo = productoResult.rows[0].id;
+
+        // 2. Insertar en la tabla `publicaciones`
+        const publicacionQuery = `
+            INSERT INTO publicaciones (id_vendedor, id_producto, precio, stock, condicion, descripcion_corta, ubicacion_ciudad)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id;
+        `;
+        const publicacionResult = await client.query(publicacionQuery, [
+            id_vendedor,
+            id_producto_nuevo,
+            precio,
+            stock,
+            condicion,
+            descripcion_corta || '', // Usar string vacío si es null
+            ubicacion_ciudad,
+        ]);
+        const id_publicacion_nueva = publicacionResult.rows[0].id;
+
+        // 3. Insertar la foto principal en `fotos_publicacion` (si se proporciona)
+        if (foto_url) {
+            const fotoQuery = `
+                INSERT INTO fotos_publicacion (id_publicacion, url, es_principal)
+                VALUES ($1, $2, TRUE);
+            `;
+            await client.query(fotoQuery, [id_publicacion_nueva, foto_url]);
+        }
+
+        await client.query('COMMIT'); // Confirmar transacción
+
+        res.status(201).json({
+            mensaje: 'Publicación creada exitosamente.',
+            publicacionId: id_publicacion_nueva,
+            productoId: id_producto_nuevo,
+        });
+
+    } catch (err) {
+        await client.query('ROLLBACK'); // Revertir en caso de error
+        console.error("Error en la transacción al crear publicación:", err.stack);
+        res.status(500).json({ error: 'Error interno del servidor al crear la publicación.' });
+    } finally {
+        client.release(); // Liberar la conexión
+    }
+});
+
 
 // -------------------------------------------------------
 // ENDPOINT PRINCIPAL PARA EL FRONTEND DE FLUTTER (Listado - Aún es público)

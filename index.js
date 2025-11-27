@@ -297,10 +297,10 @@ app.post('/api/publicaciones', verificarToken, async (req, res) => {
         ]);
         const id_producto_nuevo = productoResult.rows[0].id;
 
-        // 2. Insertar en la tabla `publicaciones`
+        // 2. Insertar en la tabla publicaciones y aqui agregue activa en valores para poder ver los ya creados
         const publicacionQuery = `
-            INSERT INTO publicaciones (id_vendedor, id_producto, precio, stock, condicion, descripcion_corta, ubicacion_ciudad)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO publicaciones (id_vendedor, id_producto, precio, stock, condicion, descripcion_corta, ubicacion_ciudad, estado_publicacion)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'Activa') 
             RETURNING id;
         `;
         const publicacionResult = await client.query(publicacionQuery, [

@@ -296,18 +296,26 @@ app.get('/api/publicaciones_autopartes', async (req, res) => {
 });
 
 // =======================================================
-// === ENDPOINT NUEVO PARA DETALLE DE PUBLICACIÓN ===
+// === ENDPOINT ACTUALIZADO PARA DETALLE DE PUBLICACIÓN ===
 // =======================================================
 app.get('/api/publicaciones/:id', async (req, res) => {
-    const { id } = req.params; // Obtenemos el ID de la URL
+    const { id } = req.params;
 
     try {
-        // Usamos la misma consulta compleja, pero filtrando por el ID de la publicación
         const queryText = `
             SELECT 
-                p.id AS publicacion_id, p.precio, p.condicion, p.stock, p.ubicacion_ciudad, 
-                p.creado_en AS fecha_publicacion, pr.nombre_parte, pr.numero_oem, 
-                u.nombre AS vendedor_nombre, u.apellido AS vendedor_apellido, c.nombre_categoria, 
+                p.id AS publicacion_id, 
+                p.precio, 
+                p.condicion, 
+                p.stock, 
+                p.ubicacion_ciudad, 
+                p.creado_en AS fecha_publicacion, 
+                p.descripcion_corta, -- <<< CAMBIO: Se añade la descripción corta
+                pr.nombre_parte, 
+                pr.numero_oem, 
+                u.nombre AS vendedor_nombre, 
+                u.apellido AS vendedor_apellido, 
+                c.nombre_categoria, 
                 (SELECT url FROM fotos_publicacion WHERE id_publicacion = p.id AND es_principal = TRUE LIMIT 1) AS foto_principal_url, 
                 ia.validacion_exitosa AS ia_verificado 
             FROM publicaciones p 
@@ -315,7 +323,7 @@ app.get('/api/publicaciones/:id', async (req, res) => {
             JOIN categorias c ON pr.id_categoria = c.id_categoria 
             JOIN usuarios u ON p.id_vendedor = u.id 
             LEFT JOIN analisis_ia ia ON p.id = ia.id_publicacion 
-            WHERE p.id = $1;`; // <-- La única diferencia es este WHERE
+            WHERE p.id = $1;`;
         
         const result = await pool.query(queryText, [id]);
 
@@ -323,7 +331,6 @@ app.get('/api/publicaciones/:id', async (req, res) => {
             return res.status(404).json({ message: 'Publicación no encontrada.' });
         }
 
-        // Devolvemos el primer (y único) resultado como un objeto JSON
         res.json(result.rows[0]);
 
     } catch (err) {
@@ -331,7 +338,6 @@ app.get('/api/publicaciones/:id', async (req, res) => {
         res.status(500).json({ message: 'Error interno del servidor.' });
     }
 });
-
 
 // ------------------------
 // RUTAS DE TABLAS SIMPLES (PARA DEBUG)
@@ -353,7 +359,6 @@ tablas.forEach(tabla => {
       }
     });
 });
-
 
 // ------------------------
 // INICIAR SERVIDOR

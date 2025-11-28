@@ -76,6 +76,7 @@ app.get("/", (req, res) => {
             <li>POST /api/registro (Registro de Usuarios)</li>
             <li>POST /api/auth/login (Inicio de Sesión)</li>
             <li>GET /api/usuario/perfil (Perfil de usuario - Protegida)</li>
+            <li>PUT /api/usuario/perfil (Actualizar perfil - Protegida)</li>
             <li>POST /api/publicaciones (Crear publicación - Protegida)</li>
         </ul>
         <p>*2025 - Desarrollado por Leonardo Tavera Anton*</p>
@@ -122,7 +123,7 @@ app.post('/api/registro', async (req, res) => {
         );
 
         res.status(201).json({
-            usuario: newUser, // La clave 'usuario' coincide con el modelo de Flutter
+            usuario: newUser,
             token: token,
             message: 'Usuario registrado exitosamente.',
         });
@@ -173,7 +174,7 @@ app.post('/api/auth/login', async (req, res) => {
 
         res.json({
             token: token,
-            usuario: user, // La clave 'usuario' coincide con el modelo de Flutter
+            usuario: user,
             message: 'Inicio de sesión exitoso. Bienvenido.'
         });
 
@@ -201,7 +202,7 @@ app.get('/api/usuario/perfil', verificarToken, async (req, res) => {
         const user = result.rows[0];
         
         res.json({
-            perfil: user, // El frontend espera la clave 'perfil' en este endpoint específico
+            perfil: user,
             message: "Datos de perfil obtenidos exitosamente con JWT."
         });
     } catch (err) {
@@ -209,6 +210,51 @@ app.get('/api/usuario/perfil', verificarToken, async (req, res) => {
         res.status(500).json({ message: 'Error al cargar los datos del perfil.' });
     }
 });
+
+// =======================================================
+// === ENDPOINT NUEVO PARA ACTUALIZAR EL PERFIL DEL USUARIO (PROTEGIDO) ===
+// =======================================================
+app.put('/api/usuario/perfil', verificarToken, async (req, res) => {
+    const userId = req.user.id;
+    const { nombre, apellido, telefono } = req.body;
+
+    // Validación básica
+    if (!nombre || !apellido) {
+        return res.status(400).json({ message: 'El nombre y el apellido son obligatorios.' });
+    }
+
+    try {
+        const updateQuery = `
+            UPDATE usuarios 
+            SET nombre = $1, apellido = $2, telefono = $3 
+            WHERE id = $4 
+            RETURNING id, nombre, apellido, correo, telefono, es_vendedor, ultima_conexion;
+        `;
+        
+        const result = await pool.query(updateQuery, [
+            nombre,
+            apellido,
+            telefono || '', // Usar string vacío si el teléfono es nulo o no se envía
+            userId
+        ]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Usuario no encontrado para actualizar.' });
+        }
+
+        const updatedUser = result.rows[0];
+        
+        res.json({
+            perfil: updatedUser,
+            message: "Perfil actualizado exitosamente."
+        });
+
+    } catch (err) {
+        console.error("Error al actualizar el perfil:", err.stack);
+        res.status(500).json({ message: 'Error interno del servidor al actualizar el perfil.' });
+    }
+});
+
 
 // -------------------------------------------------------
 // ENDPOINT PARA CREAR UNA NUEVA PUBLICACIÓN (PROTEGIDO)
@@ -296,7 +342,7 @@ app.get('/api/publicaciones_autopartes', async (req, res) => {
 });
 
 // =======================================================
-// === ENDPOINT ACTUALIZADO PARA DETALLE DE PUBLICACIÓN ===
+// === ENDPOINT PARA DETALLE DE PUBLICACIÓN ===
 // =======================================================
 app.get('/api/publicaciones/:id', async (req, res) => {
     const { id } = req.params;
@@ -304,18 +350,10 @@ app.get('/api/publicaciones/:id', async (req, res) => {
     try {
         const queryText = `
             SELECT 
-                p.id AS publicacion_id, 
-                p.precio, 
-                p.condicion, 
-                p.stock, 
-                p.ubicacion_ciudad, 
-                p.creado_en AS fecha_publicacion, 
-                p.descripcion_corta, -- <<< CAMBIO: Se añade la descripción corta
-                pr.nombre_parte, 
-                pr.numero_oem, 
-                u.nombre AS vendedor_nombre, 
-                u.apellido AS vendedor_apellido, 
-                c.nombre_categoria, 
+                p.id AS publicacion_id, p.precio, p.condicion, p.stock, p.ubicacion_ciudad, 
+                p.creado_en AS fecha_publicacion, p.descripcion_corta,
+                pr.nombre_parte, pr.numero_oem, 
+                u.nombre AS vendedor_nombre, u.apellido AS vendedor_apellido, c.nombre_categoria, 
                 (SELECT url FROM fotos_publicacion WHERE id_publicacion = p.id AND es_principal = TRUE LIMIT 1) AS foto_principal_url, 
                 ia.validacion_exitosa AS ia_verificado 
             FROM publicaciones p 
@@ -339,6 +377,7 @@ app.get('/api/publicaciones/:id', async (req, res) => {
     }
 });
 
+
 // ------------------------
 // RUTAS DE TABLAS SIMPLES (PARA DEBUG)
 // ------------------------
@@ -359,6 +398,7 @@ tablas.forEach(tabla => {
       }
     });
 });
+
 
 // ------------------------
 // INICIAR SERVIDOR

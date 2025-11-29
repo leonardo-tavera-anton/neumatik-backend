@@ -350,7 +350,7 @@ app.get('/api/publicaciones/:id', async (req, res) => {
     try {
         const queryText = `
             SELECT 
-                p.id AS publicacion_id, p.precio, p.condicion, p.stock, p.ubicacion_ciudad, 
+                p.id AS publicacion_id, p.id_vendedor, p.precio, p.condicion, p.stock, p.ubicacion_ciudad, 
                 p.creado_en AS fecha_publicacion, p.descripcion_corta,
                 pr.nombre_parte, pr.numero_oem, 
                 u.nombre AS vendedor_nombre, u.apellido AS vendedor_apellido, c.nombre_categoria, 

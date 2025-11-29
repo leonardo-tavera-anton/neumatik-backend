@@ -484,8 +484,8 @@ app.post('/api/ia/analizar-imagen', verificarToken, upload.single('image'), asyn
     try {
         // 2. Importamos y configuramos la IA de Google.
         const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        // Usamos la clave segura guardada en las variables de entorno de Railway.
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY); 
+        //aqui usamos la clave segura guardada en las variables de entorno de Railway lo estare guardando no toquen ni copien pq google reconoce y bloquea.
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);//GEMINI_API_KEY es la variable de entorno donde se guarda la clave de API de Gemini
         const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
         // 3. Preparamos la imagen y el prompt.

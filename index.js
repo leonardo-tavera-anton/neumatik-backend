@@ -378,6 +378,52 @@ app.get('/api/publicaciones/:id', async (req, res) => {
 });
 
 // =======================================================
+// === ENDPOINT PARA ACTUALIZAR UNA PUBLICACIÓN (PROTEGIDO) ===
+// =======================================================
+app.put('/api/publicaciones/:id', verificarToken, async (req, res) => {
+    const { id } = req.params; // ID de la publicación a editar
+    const id_usuario_actual = req.user.id; // ID del usuario que hace la petición
+
+    const {
+        nombre_parte, id_categoria, precio,
+        condicion, stock, ubicacion_ciudad, numero_oem, descripcion_corta,
+    } = req.body;
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. Verificar que el usuario es el dueño de la publicación
+        const publicacionResult = await client.query('SELECT id_vendedor, id_producto FROM publicaciones WHERE id = $1', [id]);
+        if (publicacionResult.rows.length === 0) {
+            throw new Error('Publicación no encontrada.');
+        }
+        if (publicacionResult.rows[0].id_vendedor !== id_usuario_actual) {
+            return res.status(403).json({ message: 'No tienes permiso para editar esta publicación.' });
+        }
+        const id_producto = publicacionResult.rows[0].id_producto;
+
+        // 2. Actualizar la tabla 'productos'
+        const productoUpdateQuery = `UPDATE productos SET nombre_parte = $1, numero_oem = $2, id_categoria = $3 WHERE id = $4;`;
+        await client.query(productoUpdateQuery, [nombre_parte, numero_oem, id_categoria, id_producto]);
+
+        // 3. Actualizar la tabla 'publicaciones'
+        const publicacionUpdateQuery = `UPDATE publicaciones SET precio = $1, stock = $2, condicion = $3, descripcion_corta = $4, ubicacion_ciudad = $5 WHERE id = $6;`;
+        await client.query(publicacionUpdateQuery, [precio, stock, condicion, descripcion_corta, ubicacion_ciudad, id]);
+
+        await client.query('COMMIT');
+        res.status(200).json({ message: 'Publicación actualizada exitosamente.' });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("Error al actualizar la publicación:", err);
+        res.status(500).json({ message: 'Error interno del servidor al actualizar la publicación.' });
+    } finally {
+        client.release();
+    }
+});
+
+
+// =======================================================
 // === ENDPOINT PARA OBTENER LAS PUBLICACIONES DE UN USUARIO (PROTEGIDO) ===
 // =======================================================
 app.get('/api/usuario/publicaciones', verificarToken, async (req, res) => {

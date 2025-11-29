@@ -4,11 +4,18 @@ import dotenv from "dotenv";
 import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-
+import multer from 'multer'; 
+// SOLUCIÓN: Se añade la configuración de Multer para poder recibir archivos (imágenes).
 dotenv.config();
+
+
+// SOLUCIÓN: Se añade la configuración de Multer para poder recibir archivos (imágenes).
+const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+
 
 // 🛑 ¡IMPORTANTE DE SEGURIDAD! 
 const JWT_SECRET = process.env.JWT_SECRET || 'mi_clave_secreta_super_segura_2025';
@@ -465,6 +472,49 @@ app.delete('/api/publicaciones/:id', verificarToken, async (req, res) => {
     }
 });
 
+// =======================================================
+// === ENDPOINT SEGURO PARA ANÁLISIS CON IA (PROTEGIDO) ===
+// =======================================================
+app.post('/api/ia/analizar-imagen', verificarToken, upload.single('image'), async (req, res) => {
+    // 1. Verificamos que se haya subido una imagen.
+    if (!req.file) {
+        return res.status(400).json({ message: 'No se proporcionó ninguna imagen.' });
+    }
+
+    try {
+        // 2. Importamos y configuramos la IA de Google.
+        const { GoogleGenerativeAI } = await import('@google/generative-ai');
+        // Usamos la clave segura guardada en las variables de entorno de Railway.
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY); 
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+        // 3. Preparamos la imagen y el prompt.
+        const imagePart = {
+            inlineData: {
+                data: req.file.buffer.toString('base64'),
+                mimeType: req.file.mimetype,
+            },
+        };
+
+        const prompt = "Eres un experto en reconocimiento de autopartes con una vista de águila. Tu misión es ser **extremadamente observador**. Examina cada rincón de la imagen, busca logos, números de serie, códigos, y cualquier texto o símbolo, por más pequeño que sea. Proporciona solo la información más valiosa y relevante en español. Sé extremadamente breve y directo. Tu respuesta debe ser una lista de datos clave, usando Markdown. Incluye únicamente los siguientes puntos:\n- **Marca:** (La marca de la pieza, si es visible. Este es el dato más importante).\n- **Nombre de la pieza:** (Ej: Pastilla de freno, Filtro de aceite).\n- **Modelo/Tipo:** (Si aplica, ej: para llantas, el modelo específico).\n- **Condición estimada:** (Nuevo, Usado, Desgastado).\n- **Número de Parte (OEM):** (Si es visible o claramente deducible).\n- **Fecha de Creación:** (Si se puede determinar por algún código en la pieza).\n- **Compatibilidad:** (Vehículos compatibles, si se conoce).\n\n**Instrucción final:** Si no puedes determinar con certeza alguno de estos datos, OMITE COMPLETAMENTE la línea correspondiente. No escribas 'No disponible' ni des explicaciones.";
+
+        // 4. Hacemos la petición a la API de Gemini.
+        const result = await model.generateContent([prompt, imagePart]);
+        const response = await result.response;
+        const text = response.text();
+
+        // 5. Devolvemos el resultado a la app de Flutter.
+        res.json({ analysis: text });
+
+    } catch (error) {
+        console.error('Error en el análisis con IA:', error);
+        // Verificamos si el error es por la clave de API.
+        if (error.message && error.message.includes('API key not valid')) {
+            return res.status(500).json({ message: 'La clave de API de IA en el servidor no es válida.' });
+        }
+        res.status(500).json({ message: 'Error interno del servidor al procesar la imagen con IA.' });
+    }
+});
 
 // =======================================================
 // === ENDPOINT PARA OBTENER LAS PUBLICACIONES DE UN USUARIO (PROTEGIDO) ===

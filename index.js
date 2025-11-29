@@ -377,6 +377,37 @@ app.get('/api/publicaciones/:id', async (req, res) => {
     }
 });
 
+// =======================================================
+// === ENDPOINT PARA OBTENER LAS PUBLICACIONES DE UN USUARIO (PROTEGIDO) ===
+// =======================================================
+app.get('/api/usuario/publicaciones', verificarToken, async (req, res) => {
+    const id_vendedor = req.user.id; // Obtenemos el ID del usuario desde el token verificado
+
+    try {
+        const queryText = `
+            SELECT 
+                p.id AS publicacion_id, p.precio, p.condicion, p.stock, p.ubicacion_ciudad, 
+                p.creado_en AS fecha_publicacion, pr.nombre_parte, pr.numero_oem, 
+                u.nombre AS vendedor_nombre, u.apellido AS vendedor_apellido, c.nombre_categoria, 
+                (SELECT url FROM fotos_publicacion WHERE id_publicacion = p.id AND es_principal = TRUE LIMIT 1) AS foto_principal_url, 
+                ia.validacion_exitosa AS ia_verificado 
+            FROM publicaciones p 
+            JOIN productos pr ON p.id_producto = pr.id 
+            JOIN categorias c ON pr.id_categoria = c.id_categoria 
+            JOIN usuarios u ON p.id_vendedor = u.id 
+            LEFT JOIN analisis_ia ia ON p.id = ia.id_publicacion 
+            WHERE p.id_vendedor = $1
+            ORDER BY p.creado_en DESC;`;
+        
+        const result = await pool.query(queryText, [id_vendedor]);
+        res.json(result.rows);
+
+    } catch (err) {
+        console.error("Error al obtener las publicaciones del usuario:", err);
+        res.status(500).json({ message: 'Error interno del servidor al consultar tus publicaciones.' });
+    }
+});
+
 
 // ------------------------
 // RUTAS DE TABLAS SIMPLES (PARA DEBUG)

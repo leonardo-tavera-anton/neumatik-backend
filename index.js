@@ -424,6 +424,49 @@ app.put('/api/publicaciones/:id', verificarToken, async (req, res) => {
 
 
 // =======================================================
+// === ENDPOINT PARA ELIMINAR UNA PUBLICACIÓN (PROTEGIDO) ===
+// =======================================================
+app.delete('/api/publicaciones/:id', verificarToken, async (req, res) => {
+    const { id } = req.params; // ID de la publicación a eliminar
+    const id_usuario_actual = req.user.id; // ID del usuario que hace la petición
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. Verificar que el usuario es el dueño de la publicación
+        const publicacionResult = await client.query('SELECT id_vendedor, id_producto FROM publicaciones WHERE id = $1', [id]);
+        if (publicacionResult.rows.length === 0) {
+            // Si no se encuentra, consideramos que ya está borrada.
+            return res.status(200).json({ message: 'Publicación no encontrada, puede que ya haya sido eliminada.' });
+        }
+        if (publicacionResult.rows[0].id_vendedor !== id_usuario_actual) {
+            return res.status(403).json({ message: 'No tienes permiso para eliminar esta publicación.' });
+        }
+        const id_producto = publicacionResult.rows[0].id_producto;
+
+        // 2. Eliminar registros dependientes (fotos)
+        await client.query('DELETE FROM fotos_publicacion WHERE id_publicacion = $1', [id]);
+
+        // 3. Eliminar la publicación
+        await client.query('DELETE FROM publicaciones WHERE id = $1', [id]);
+
+        // 4. Eliminar el producto asociado (si no es usado por otras publicaciones)
+        await client.query('DELETE FROM productos WHERE id = $1', [id_producto]);
+
+        await client.query('COMMIT');
+        res.status(200).json({ message: 'Publicación eliminada exitosamente.' });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("Error al eliminar la publicación:", err);
+        res.status(500).json({ message: 'Error interno del servidor al eliminar la publicación.' });
+    } finally {
+        client.release();
+    }
+});
+
+
+// =======================================================
 // === ENDPOINT PARA OBTENER LAS PUBLICACIONES DE UN USUARIO (PROTEGIDO) ===
 // =======================================================
 app.get('/api/usuario/publicaciones', verificarToken, async (req, res) => {

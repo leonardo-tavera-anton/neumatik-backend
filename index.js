@@ -496,7 +496,22 @@ app.post('/api/ia/analizar-imagen', verificarToken, upload.single('image'), asyn
             },
         };
 
-        const prompt = "Eres un experto en reconocimiento de autopartes con una vista de águila. Tu misión es ser **extremadamente observador**. Examina cada rincón de la imagen, busca logos, números de serie, códigos, y cualquier texto o símbolo, por más pequeño que sea. Proporciona solo la información más valiosa y relevante en español. Sé extremadamente breve y directo. Tu respuesta debe ser una lista de datos clave, usando Markdown. Incluye únicamente los siguientes puntos:\n- **Marca:** (La marca de la pieza, si es visible. Este es el dato más importante).\n- **Nombre de la pieza:** (Ej: Pastilla de freno, Filtro de aceite).\n- **Modelo/Tipo:** (Si aplica, ej: para llantas, el modelo específico).\n- **Condición estimada:** (Nuevo, Usado, Desgastado).\n- **Número de Parte (OEM):** (Si es visible o claramente deducible).\n- **Fecha de Creación:** (Si se puede determinar por algún código en la pieza).\n- **Compatibilidad:** (Vehículos compatibles, si se conoce).\n\n**Instrucción final:** Si no puedes determinar con certeza alguno de estos datos, OMITE COMPLETAMENTE la línea correspondiente. No escribas 'No disponible' ni des explicaciones.";
+        //tremendo prompt para analisis de las fotos
+        const prompt = "Eres un experto en reconocimiento de autopartes. Tu misión es ser **extremadamente observador**. Proporciona tu análisis en español, dividido en dos secciones separadas por una línea horizontal '---'.\n\n" +
+            "**Sección 1: Análisis de la Autoparte**\n" +
+            "Crea una lista de datos clave usando Markdown. Incluye únicamente los siguientes puntos:\n" +
+            "- **Marca:** (La marca de la pieza, si es visible).\n" +
+            "- **Nombre de la pieza:** (Ej: Pastilla de freno, Filtro de aceite).\n" +
+            "- **Número de Parte (OEM):** (Si es visible o claramente deducible).\n" +
+            "- **Condición estimada:** (Nuevo, Usado, Desgastado).\n" +
+            "- **Compatibilidad:** (Menciona marcas o modelos de vehículos compatibles si se puede deducir).\n" +
+            "**Instrucción clave:** Si no puedes determinar un dato, OMITE la línea correspondiente. No des explicaciones.\n\n" +
+            "---\n\n" +
+            "**Sección 2: Detalles de la Imagen**\n" +
+            "Describe a grandes rasgos los siguientes aspectos fotográficos:\n" +
+            "- **Calidad:** (Ej: Nítida, Borrosa, Bien iluminada, Oscura).\n" +
+            "- **Ángulo:** (Ej: Frontal, Lateral, Cenital).\n" +
+            "- **Fondo:** (Describe brevemente el fondo de la imagen).";
 
         // 4. Hacemos la petición a la API de Gemini.
         const result = await model.generateContent([prompt, imagePart]);

@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import multer from 'multer'; 
+import multer from 'multer';
 // SOLUCIÓN: Se añade la configuración de Multer para poder recibir archivos (imágenes).
 dotenv.config();
 
@@ -95,7 +95,8 @@ app.get("/", (req, res) => {
 // ENDPOINT DE REGISTRO DE USUARIO (POST /api/registro)
 // -------------------------------------------------------
 app.post('/api/registro', async (req, res) => {
-    const { nombre, apellido, correo, contrasena, telefono, es_vendedor } = req.body;
+    // SIMPLIFICACIÓN: Se elimina 'es_vendedor'
+    const { nombre, apellido, correo, contrasena, telefono } = req.body;
 
     if (!correo || !contrasena || !nombre || !apellido) {
         return res.status(400).json({ message: 'Faltan campos obligatorios: nombre, apellido, correo y contraseña.' });
@@ -110,21 +111,23 @@ app.post('/api/registro', async (req, res) => {
             return res.status(409).json({ message: 'El correo electrónico ya está registrado.' });
         }
 
-        const newUserQuery = `INSERT INTO usuarios (nombre, apellido, correo, contrasena_hash, telefono, es_vendedor, creado_en, ultima_conexion) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) RETURNING *;`;
+        // SIMPLIFICACIÓN: Se elimina 'es_vendedor' de la consulta
+        const newUserQuery = `INSERT INTO usuarios (nombre, apellido, correo, contrasena_hash, telefono, creado_en, ultima_conexion) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) RETURNING *;`;
         
+        // SIMPLIFICACIÓN: Se elimina 'es_vendedor' de los parámetros
         const newUserResult = await pool.query(newUserQuery, [
             nombre,
             apellido,
             correo,
             hashedPassword,
             telefono,
-            es_vendedor || false,
         ]);
 
         const newUser = newUserResult.rows[0];
 
+        // SIMPLIFICACIÓN: Se elimina 'esVendedor' del token
         const token = jwt.sign(
-            { id: newUser.id, correo: newUser.correo, esVendedor: newUser.es_vendedor },
+            { id: newUser.id, correo: newUser.correo },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
@@ -171,8 +174,9 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).send('Credenciales inválidas (correo o contraseña incorrectos).');
         }
 
+        // SIMPLIFICACIÓN: Se elimina 'esVendedor' del token
         const token = jwt.sign(
-            { id: user.id, correo: user.correo, esVendedor: user.es_vendedor },
+            { id: user.id, correo: user.correo },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
@@ -197,8 +201,9 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/usuario/perfil', verificarToken, async (req, res) => {
     try {
         const userId = req.user.id;
+        // SIMPLIFICACIÓN: Se elimina 'es_vendedor' de la consulta
         const result = await pool.query(
-            'SELECT id, nombre, apellido, correo, telefono, es_vendedor, ultima_conexion FROM usuarios WHERE id = $1',
+            'SELECT id, nombre, apellido, correo, telefono, ultima_conexion FROM usuarios WHERE id = $1',
             [userId]
         );
 
@@ -231,11 +236,12 @@ app.put('/api/usuario/perfil', verificarToken, async (req, res) => {
     }
 
     try {
+        // SIMPLIFICACIÓN: Se elimina 'es_vendedor' de la cláusula RETURNING
         const updateQuery = `
             UPDATE usuarios 
             SET nombre = $1, apellido = $2, telefono = $3 
             WHERE id = $4 
-            RETURNING id, nombre, apellido, correo, telefono, es_vendedor, ultima_conexion;
+            RETURNING id, nombre, apellido, correo, telefono, ultima_conexion;
         `;
         
         const result = await pool.query(updateQuery, [

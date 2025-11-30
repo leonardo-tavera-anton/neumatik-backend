@@ -564,7 +564,7 @@ app.post('/api/ia/analizar-para-crear', verificarToken, upload.single('image'), 
             "- Número de Parte (OEM): (Si es visible o claramente deducible. Si no, omite esta línea).\n" +
             "- Categoría: (Elige UNA de las siguientes opciones: Frenos, Suspensión y Dirección, Motor, Filtros, Sistema Eléctrico, Carrocería, Neumáticos y Ruedas. Si no estás seguro, elige la más probable).\n" +
             "- Condición estimada: (Elige UNA de las siguientes opciones: Nuevo, Usado, Reacondicionado).\n" +
-            "- Descripción corta: (Genera una descripción breve y atractiva de 1-2 frases para la venta).\n" +
+            "- Descripción corta: (Genera una descripción breve y atractiva de 1-2 frases para la venta y recuerda eres el mejor mecanico conocer de todo debes buscar en internet y siempre menciona la marca del producto y si no puedes reconocer abstente).\n" +
             "- Precio estimado (S/): (Estima un precio de venta en Soles Peruanos (S/). Si no estás seguro, proporciona un rango, ej: 150 - 200. Si es imposible de estimar, omite la línea).\n\n" +
             "**Instrucción clave:** No incluyas ninguna otra información, explicación o saludo. Solo la lista de datos.";
 

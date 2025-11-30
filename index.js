@@ -5,11 +5,11 @@ import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from 'multer';
-// SOLUCIÓN: Se añade la configuración de Multer para poder recibir archivos (imágenes).
+// Se añade la configuración de Multer para poder recibir archivos (imágenes).
 dotenv.config();
 
 
-// SOLUCIÓN: Se añade la configuración de Multer para poder recibir archivos (imágenes).
+// Configuración de Multer para poder recibir archivos (imágenes).
 const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 
 
 
-// 🛑 ¡IMPORTANTE DE SEGURIDAD! 
+// IMPORTANTE DE SEGURIDAD
 const JWT_SECRET = process.env.JWT_SECRET || 'mi_clave_secreta_super_segura_2025';
 
 // ------------------------
@@ -26,8 +26,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'mi_clave_secreta_super_segura_2025
 
 // --- CONFIGURACIÓN DE CORS (Cross-Origin Resource Sharing) ---
 const allowedOrigins = [
-  'https://neumatik-frontend.web.app', // Tu futuro dominio de producción
-  'http://localhost:8080',            // El propio backend (si aplica)
+  'https://neumatik-frontend.web.app', // Dominio de producción
+  'http://localhost:8080',            // Local
   'http://localhost',
   'http://127.0.0.1',
 ];
@@ -96,7 +96,7 @@ app.get("/", (req, res) => {
 // -------------------------------------------------------
 app.post('/api/registro', async (req, res) => {
     // SIMPLIFICACIÓN: Se elimina 'es_vendedor'
-    const { nombre, apellido, correo, contrasena, telefono } = req.body;
+    const { nombre, apellido, correo, contrasena, telefono } = req.body; // Permite la comunicacion con el front si no hay esto no se podra registrar
 
     if (!correo || !contrasena || !nombre || !apellido) {
         return res.status(400).json({ message: 'Faltan campos obligatorios: nombre, apellido, correo y contraseña.' });
@@ -489,7 +489,7 @@ app.post('/api/ia/analizar-imagen', verificarToken, upload.single('image'), asyn
 
     try {
         // 2. Importamos y configuramos la IA de Google.
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
+        const { GoogleGenerativeAI } = await import('@google/generative-ai'); //dependencia en el package.json y en el pub del front
         //aqui usamos la clave segura guardada en las variables de entorno de Railway lo estare guardando no toquen ni copien pq google reconoce y bloquea.
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);//GEMINI_API_KEY es la variable de entorno donde se guarda la clave de API de Gemini
         const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
@@ -506,7 +506,7 @@ app.post('/api/ia/analizar-imagen', verificarToken, upload.single('image'), asyn
         const prompt = "Eres un experto en reconocimiento de autopartes. Tu misión es ser **extremadamente observador**. Proporciona tu análisis en español, dividido en dos secciones separadas por una línea horizontal '---'.\n\n" +
             "Análisis de la Autoparte:\n" +
             "Crea una lista de datos clave usando Markdown. Incluye únicamente los siguientes puntos:\n" +
-            "- Marca: (La marca de la pieza, si es visible).\n" +
+            "- Marca: (La marca de la pieza, si es visible y si no buscalo en internet debes mostrarlo).\n" +
             "- Nombre de la pieza: (Ej: Pastilla de freno, Filtro de aceite).\n" +
             "- Número de Parte (OEM): (Si es visible o claramente deducible).\n" +
             "- Condición estimada: (Nuevo, Usado, Desgastado).\n" +

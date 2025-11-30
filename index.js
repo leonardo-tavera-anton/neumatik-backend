@@ -504,7 +504,7 @@ app.post('/api/ia/analizar-imagen', verificarToken, upload.single('image'), asyn
 
         //tremendo prompt para analisis de las fotos
         const prompt = "Eres un experto en reconocimiento de autopartes. Tu misión es ser **extremadamente observador**. Proporciona tu análisis en español, dividido en dos secciones separadas por una línea horizontal '---'.\n\n" +
-            "Sección 1: Análisis de la Autoparte\n" +
+            "Análisis de la Autoparte:\n" +
             "Crea una lista de datos clave usando Markdown. Incluye únicamente los siguientes puntos:\n" +
             "- Marca: (La marca de la pieza, si es visible).\n" +
             "- Nombre de la pieza: (Ej: Pastilla de freno, Filtro de aceite).\n" +
@@ -513,7 +513,7 @@ app.post('/api/ia/analizar-imagen', verificarToken, upload.single('image'), asyn
             "- Compatibilidad: (Menciona marcas o modelos de vehículos compatibles si se puede deducir).\n" +
             "Instrucción clave: Si no puedes determinar un dato, OMITE la línea correspondiente. No des explicaciones.\n\n" +
             "---\n\n" +
-            "Sección 2: Detalles de la Imagen\n" +
+            "Detalles de la Imagen:\n" +
             "Describe a grandes rasgos los siguientes aspectos fotográficos:\n" +
             "- Calidad: (Ej: Nítida, Borrosa, Bien iluminada, Oscura).\n" +
             "- Ángulo: (Ej: Frontal, Lateral, Cenital).\n" +

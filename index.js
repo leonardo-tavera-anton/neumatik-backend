@@ -504,20 +504,20 @@ app.post('/api/ia/analizar-imagen', verificarToken, upload.single('image'), asyn
 
         //tremendo prompt para analisis de las fotos
         const prompt = "Eres un experto en reconocimiento de autopartes. Tu misión es ser **extremadamente observador**. Proporciona tu análisis en español, dividido en dos secciones separadas por una línea horizontal '---'.\n\n" +
-            "**Sección 1: Análisis de la Autoparte**\n" +
+            "Sección 1: Análisis de la Autoparte\n" +
             "Crea una lista de datos clave usando Markdown. Incluye únicamente los siguientes puntos:\n" +
-            "- **Marca:** (La marca de la pieza, si es visible).\n" +
-            "- **Nombre de la pieza:** (Ej: Pastilla de freno, Filtro de aceite).\n" +
-            "- **Número de Parte (OEM):** (Si es visible o claramente deducible).\n" +
-            "- **Condición estimada:** (Nuevo, Usado, Desgastado).\n" +
-            "- **Compatibilidad:** (Menciona marcas o modelos de vehículos compatibles si se puede deducir).\n" +
-            "**Instrucción clave:** Si no puedes determinar un dato, OMITE la línea correspondiente. No des explicaciones.\n\n" +
+            "- Marca: (La marca de la pieza, si es visible).\n" +
+            "- Nombre de la pieza: (Ej: Pastilla de freno, Filtro de aceite).\n" +
+            "- Número de Parte (OEM): (Si es visible o claramente deducible).\n" +
+            "- Condición estimada: (Nuevo, Usado, Desgastado).\n" +
+            "- Compatibilidad: (Menciona marcas o modelos de vehículos compatibles si se puede deducir).\n" +
+            "Instrucción clave: Si no puedes determinar un dato, OMITE la línea correspondiente. No des explicaciones.\n\n" +
             "---\n\n" +
-            "**Sección 2: Detalles de la Imagen**\n" +
+            "Sección 2: Detalles de la Imagen\n" +
             "Describe a grandes rasgos los siguientes aspectos fotográficos:\n" +
-            "- **Calidad:** (Ej: Nítida, Borrosa, Bien iluminada, Oscura).\n" +
-            "- **Ángulo:** (Ej: Frontal, Lateral, Cenital).\n" +
-            "- **Fondo:** (Describe brevemente el fondo de la imagen).";
+            "- Calidad: (Ej: Nítida, Borrosa, Bien iluminada, Oscura).\n" +
+            "- Ángulo: (Ej: Frontal, Lateral, Cenital).\n" +
+            "- Fondo: (Describe brevemente el fondo de la imagen).";
 
         // 4. Hacemos la petición a la API de Gemini.
         const result = await model.generateContent([prompt, imagePart]);
@@ -560,12 +560,12 @@ app.post('/api/ia/analizar-para-crear', verificarToken, upload.single('image'), 
         // --- ESTE ES EL NUEVO PROMPT ---
         const prompt = "Eres un asistente experto para vendedores de autopartes en la plataforma Neumatik. Tu objetivo es analizar la imagen de una autoparte y extraer la información necesaria para pre-rellenar un formulario de venta. Proporciona tu análisis en español, en formato 'clave: valor'.\n\n" +
             "Incluye únicamente los siguientes puntos:\n" +
-            "- **Nombre de la pieza:** (El nombre más común y comercial para la pieza).\n" +
-            "- **Número de Parte (OEM):** (Si es visible o claramente deducible. Si no, omite esta línea).\n" +
-            "- **Categoría:** (Elige UNA de las siguientes opciones: Frenos, Suspensión y Dirección, Motor, Filtros, Sistema Eléctrico, Carrocería, Neumáticos y Ruedas. Si no estás seguro, elige la más probable).\n" +
-            "- **Condición estimada:** (Elige UNA de las siguientes opciones: Nuevo, Usado, Reacondicionado).\n" +
-            "- **Descripción corta:** (Genera una descripción breve y atractiva de 1-2 frases para la venta).\n" +
-            "- **Precio estimado (S/):** (Estima un precio de venta en Soles Peruanos (S/). Si no estás seguro, proporciona un rango, ej: 150 - 200. Si es imposible de estimar, omite la línea).\n\n" +
+            "- Nombre de la pieza: (El nombre más común y comercial para la pieza).\n" +
+            "- Número de Parte (OEM): (Si es visible o claramente deducible. Si no, omite esta línea).\n" +
+            "- Categoría: (Elige UNA de las siguientes opciones: Frenos, Suspensión y Dirección, Motor, Filtros, Sistema Eléctrico, Carrocería, Neumáticos y Ruedas. Si no estás seguro, elige la más probable).\n" +
+            "- Condición estimada: (Elige UNA de las siguientes opciones: Nuevo, Usado, Reacondicionado).\n" +
+            "- Descripción corta: (Genera una descripción breve y atractiva de 1-2 frases para la venta).\n" +
+            "- Precio estimado (S/): (Estima un precio de venta en Soles Peruanos (S/). Si no estás seguro, proporciona un rango, ej: 150 - 200. Si es imposible de estimar, omite la línea).\n\n" +
             "**Instrucción clave:** No incluyas ninguna otra información, explicación o saludo. Solo la lista de datos.";
 
         const result = await model.generateContent([prompt, imagePart]);

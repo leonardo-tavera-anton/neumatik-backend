@@ -479,7 +479,7 @@ app.delete('/api/publicaciones/:id', verificarToken, async (req, res) => {
 });
 
 // =======================================================
-// === ENDPOINT SEGURO PARA ANÁLISIS CON IA (PROTEGIDO) ===
+// === ENDPOINT SEGURO PARA ANÁLISIS CON IA (SEPARADO DEL DE CREAR) ===
 // =======================================================
 app.post('/api/ia/analizar-imagen', verificarToken, upload.single('image'), async (req, res) => {
     // 1. Verificamos que se haya subido una imagen.
@@ -533,6 +533,49 @@ app.post('/api/ia/analizar-imagen', verificarToken, upload.single('image'), asyn
         if (error.message && error.message.includes('API key not valid')) {
             return res.status(500).json({ message: 'La clave de API de IA en el servidor no es válida.' });
         }
+        res.status(500).json({ message: 'Error interno del servidor al procesar la imagen con IA.' });
+    }
+});
+
+// =======================================================
+// === ENDPOINT DE IA PARA AUTOCOMPLETAR FORMULARIO (NUEVO) ===
+// =======================================================
+app.post('/api/ia/analizar-para-crear', verificarToken, upload.single('image'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'No se proporcionó ninguna imagen.' });
+    }
+
+    try {
+        const { GoogleGenerativeAI } = await import('@google/generative-ai');
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+        const imagePart = {
+            inlineData: {
+                data: req.file.buffer.toString('base64'),
+                mimeType: req.file.mimetype,
+            },
+        };
+
+        // --- ESTE ES EL NUEVO PROMPT ---
+        const prompt = "Eres un asistente experto para vendedores de autopartes en la plataforma Neumatik. Tu objetivo es analizar la imagen de una autoparte y extraer la información necesaria para pre-rellenar un formulario de venta. Proporciona tu análisis en español, en formato 'clave: valor'.\n\n" +
+            "Incluye únicamente los siguientes puntos:\n" +
+            "- **Nombre de la pieza:** (El nombre más común y comercial para la pieza).\n" +
+            "- **Número de Parte (OEM):** (Si es visible o claramente deducible. Si no, omite esta línea).\n" +
+            "- **Categoría:** (Elige UNA de las siguientes opciones: Frenos, Suspensión y Dirección, Motor, Filtros, Sistema Eléctrico, Carrocería, Neumáticos y Ruedas. Si no estás seguro, elige la más probable).\n" +
+            "- **Condición estimada:** (Elige UNA de las siguientes opciones: Nuevo, Usado, Reacondicionado).\n" +
+            "- **Descripción corta:** (Genera una descripción breve y atractiva de 1-2 frases para la venta).\n" +
+            "- **Precio estimado (S/):** (Estima un precio de venta en Soles Peruanos (S/). Si no estás seguro, proporciona un rango, ej: 150 - 200. Si es imposible de estimar, omite la línea).\n\n" +
+            "**Instrucción clave:** No incluyas ninguna otra información, explicación o saludo. Solo la lista de datos.";
+
+        const result = await model.generateContent([prompt, imagePart]);
+        const response = await result.response;
+        const text = response.text();
+
+        res.json({ analysis: text });
+
+    } catch (error) {
+        console.error('Error en el análisis para crear publicación:', error);
         res.status(500).json({ message: 'Error interno del servidor al procesar la imagen con IA.' });
     }
 });

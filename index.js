@@ -638,5 +638,5 @@ tablas.forEach(tabla => {
 // INICIAR SERVIDOR
 // ------------------------
 app.listen(PORT, () => {
-    console.log(`Servidor wasa corriendo en puerto ${PORT}`);
+    console.log(`Servidor corriendo en puerto ${PORT}`);
 });

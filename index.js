@@ -331,6 +331,7 @@ app.post('/api/publicaciones', verificarToken, async (req, res) => {
 // -------------------------------------------------------
 app.get('/api/publicaciones_autopartes', async (req, res) => {
     try {
+        // OPTIMIZACIÓN: Se añade "AND p.stock > 0" para no mostrar productos agotados.
         const queryText = `
             SELECT 
                 p.id AS publicacion_id, p.precio, p.condicion, p.stock, p.ubicacion_ciudad, 
@@ -343,7 +344,7 @@ app.get('/api/publicaciones_autopartes', async (req, res) => {
             JOIN categorias c ON pr.id_categoria = c.id_categoria 
             JOIN usuarios u ON p.id_vendedor = u.id 
             LEFT JOIN analisis_ia ia ON p.id = ia.id_publicacion 
-            WHERE p.estado_publicacion = 'Activa' 
+            WHERE p.estado_publicacion = 'Activa' AND p.stock > 0 
             ORDER BY p.creado_en DESC;`;
         
         const result = await pool.query(queryText);

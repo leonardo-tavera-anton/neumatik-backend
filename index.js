@@ -616,6 +616,7 @@ app.post('/api/ia/analizar-para-crear', verificarToken, upload.single('image'), 
 // =======================================================
 
 // --- ENDPOINT PARA CREAR UN NUEVO PEDIDO (PROTEGIDO) ---
+// --- ENDPOINT PARA CREAR UN NUEVO PEDIDO (PROTEGIDO) ---
 app.post('/api/pedidos', verificarToken, async (req, res) => {
     const id_comprador = req.user.id;
     const { items, total, direccion_envio } = req.body;
@@ -629,22 +630,21 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
         await client.query('BEGIN');
 
         // 1. Crear la orden principal
+        // MEJORA: Se añade RETURNING * para obtener todos los datos de la nueva orden.
         const ordenQuery = `
             INSERT INTO ordenes (id_comprador, total, estado_orden, direccion_envio) 
             VALUES ($1::UUID, $2, 'Pendiente', $3) 
-            RETURNING id, fecha_orden;
+            RETURNING *;
         `;
         const ordenResult = await client.query(ordenQuery, [id_comprador, total, direccion_envio]);
         const nuevaOrden = ordenResult.rows[0];
          if (!nuevaOrden) {
-            // Esto no debería ocurrir si la inserción es exitosa, pero es una guarda de seguridad.
             throw new Error('No se pudo crear la orden principal.');
         }
         const id_orden_nueva = nuevaOrden.id;
 
         // 2. Insertar cada item en detalles_orden y validar
         for (const item of items) {
-            // --- Validación robusta para cada item ---
             if (!item.id_publicacion || typeof item.cantidad !== 'number' || typeof item.precio !== 'number') {
                 throw new Error('Cada item del pedido debe tener un id_publicacion, cantidad y precio válidos.');
             }
@@ -653,7 +653,6 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
 
             const stockCheck = await client.query('SELECT stock FROM publicaciones WHERE id = $1::UUID FOR UPDATE', [item.id_publicacion]);
             
-            // --- Mensaje de error mejorado ---
             if (stockCheck.rows.length === 0) {
                 throw new Error(`El producto con ID ${item.id_publicacion} no fue encontrado.`);
             }
@@ -661,14 +660,12 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
                 throw new Error(`Stock insuficiente para el producto ID ${item.id_publicacion}.`);
             }
 
-            // --- CORRECCIÓN CLAVE: Añadir ::UUID para id_orden ---
             const detalleQuery = `
                 INSERT INTO detalles_orden (id_orden, id_publicacion, cantidad, precio_unitario, subtotal) 
                 VALUES ($1::UUID, $2::UUID, $3, $4, $5);
             `;
             await client.query(detalleQuery, [id_orden_nueva, item.id_publicacion, item.cantidad, item.precio, subtotal]);
 
-            // CORRECCIÓN: Convertir id_publicacion de String a UUID en la actualización del stock.
             const stockUpdateQuery = `
                 UPDATE publicaciones SET stock = stock - $1 WHERE id = $2::UUID;
             `;
@@ -676,13 +673,20 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
         }
 
         await client.query('COMMIT');
+
+        // MEJORA: Se construye una respuesta completa que coincide con el modelo Pedido de Flutter.
+        const pedidoCompleto = {
+            id: nuevaOrden.id,
+            fecha: nuevaOrden.fecha_orden,
+            total: nuevaOrden.total,
+            estado_orden: nuevaOrden.estado_orden,
+            direccion_envio: nuevaOrden.direccion_envio,
+            items: [], // La pantalla de éxito no necesita los items, se envía un array vacío.
+        };
+
         res.status(201).json({
             message: 'Pedido creado exitosamente.',
-            pedido: {
-                id: id_orden_nueva,
-                fecha: nuevaOrden.fecha_orden,
-                total: total,
-            }
+            pedido: pedidoCompleto // Se envía el objeto completo.
         });
 
     } catch (err) {
@@ -694,42 +698,88 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
     }
 });
 
-// --- ENDPOINT PARA OBTENER EL HISTORIAL DE PEDIDOS DE UN USUARIO (PROTEGIDO) ---
-app.get('/api/pedidos', verificarToken, async (req, res) => {
-    const id_comprador_actual = req.user.id;
+// --- ENDPOINT PARA CREAR UN NUEVO PEDIDO (PROTEGIDO) ---
+app.post('/api/pedidos', verificarToken, async (req, res) => {
+    const id_comprador = req.user.id;
+    const { items, total, direccion_envio } = req.body;
 
+    if (!items || !Array.isArray(items) || items.length === 0 || !total || !direccion_envio) {
+        return res.status(400).json({ message: 'Datos del pedido incompletos (items, total, direccion_envio).' });
+    }
+
+    const client = await pool.connect();
     try {
-        // CORRECCIÓN: Se usa 'id_comprador' para coincidir con la base de datos y se convierte a UUID.
-        const query = `
-            SELECT 
-                o.id, 
-                o.fecha_orden as fecha, 
-                o.total,
-                u.nombre as usuario_nombre,
-                u.correo as usuario_correo,
-                (SELECT json_agg(json_build_object(
-                    'nombre_parte', p.nombre_parte, 
-                    'cantidad', d.cantidad, 
-                    'precio', d.precio_unitario
-                ))
-                 FROM detalles_orden d
-                 JOIN publicaciones pub ON d.id_publicacion = pub.id
-                 JOIN productos p ON pub.id_producto = p.id
-                 WHERE d.id_orden = o.id) as items
-            FROM ordenes o
-            JOIN usuarios u ON o.id_comprador = u.id
-            WHERE o.id_comprador = $1::UUID
-            ORDER BY o.fecha_orden DESC;
+        await client.query('BEGIN');
+
+        // 1. Crear la orden principal
+        // MEJORA: Se añade RETURNING * para obtener todos los datos de la nueva orden.
+        const ordenQuery = `
+            INSERT INTO ordenes (id_comprador, total, estado_orden, direccion_envio) 
+            VALUES ($1::UUID, $2, 'Pendiente', $3) 
+            RETURNING *;
         `;
-        
-        const result = await pool.query(query, [id_comprador_actual]);
-        res.json(result.rows);
+        const ordenResult = await client.query(ordenQuery, [id_comprador, total, direccion_envio]);
+        const nuevaOrden = ordenResult.rows[0];
+         if (!nuevaOrden) {
+            throw new Error('No se pudo crear la orden principal.');
+        }
+        const id_orden_nueva = nuevaOrden.id;
+
+        // 2. Insertar cada item en detalles_orden y validar
+        for (const item of items) {
+            if (!item.id_publicacion || typeof item.cantidad !== 'number' || typeof item.precio !== 'number') {
+                throw new Error('Cada item del pedido debe tener un id_publicacion, cantidad y precio válidos.');
+            }
+
+            const subtotal = item.cantidad * item.precio;
+
+            const stockCheck = await client.query('SELECT stock FROM publicaciones WHERE id = $1::UUID FOR UPDATE', [item.id_publicacion]);
+            
+            if (stockCheck.rows.length === 0) {
+                throw new Error(`El producto con ID ${item.id_publicacion} no fue encontrado.`);
+            }
+            if (stockCheck.rows[0].stock < item.cantidad) {
+                throw new Error(`Stock insuficiente para el producto ID ${item.id_publicacion}.`);
+            }
+
+            const detalleQuery = `
+                INSERT INTO detalles_orden (id_orden, id_publicacion, cantidad, precio_unitario, subtotal) 
+                VALUES ($1::UUID, $2::UUID, $3, $4, $5);
+            `;
+            await client.query(detalleQuery, [id_orden_nueva, item.id_publicacion, item.cantidad, item.precio, subtotal]);
+
+            const stockUpdateQuery = `
+                UPDATE publicaciones SET stock = stock - $1 WHERE id = $2::UUID;
+            `;
+            await client.query(stockUpdateQuery, [item.cantidad, item.id_publicacion]);
+        }
+
+        await client.query('COMMIT');
+
+        // MEJORA: Se construye una respuesta completa que coincide con el modelo Pedido de Flutter.
+        const pedidoCompleto = {
+            id: nuevaOrden.id,
+            fecha: nuevaOrden.fecha_orden,
+            total: nuevaOrden.total,
+            estado_orden: nuevaOrden.estado_orden,
+            direccion_envio: nuevaOrden.direccion_envio,
+            items: [], // La pantalla de éxito no necesita los items, se envía un array vacío.
+        };
+
+        res.status(201).json({
+            message: 'Pedido creado exitosamente.',
+            pedido: pedidoCompleto // Se envía el objeto completo.
+        });
 
     } catch (err) {
-        console.error("Error al obtener el historial de pedidos:", err.stack);
-        res.status(500).json({ message: 'Error interno del servidor al obtener el historial.' });
+        await client.query('ROLLBACK');
+        console.error("Error en la transacción al crear pedido:", err.stack);
+        res.status(500).json({ message: err.message || 'Error interno del servidor al crear el pedido.' });
+    } finally {
+        client.release();
     }
 });
+
 
 // =======================================================
 // === ENDPOINTS PARA GESTIÓN DE DIRECCIONES (NUEVO) ===

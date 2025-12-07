@@ -617,46 +617,55 @@ app.get('/api/usuario/publicaciones', verificarToken, async (req, res) => {
 
 // --- ENDPOINT PARA CREAR UN NUEVO PEDIDO (PROTEGIDO) ---
 app.post('/api/pedidos', verificarToken, async (req, res) => {
-    const id_usuario = req.user.id;
-    const { items, total } = req.body; // 'items' debe ser un array de { id_publicacion, cantidad, precio }
+    // Usamos 'id_comprador' para que coincida con el nombre de la columna en la tabla 'ordenes'.
+    const id_comprador = req.user.id;
+    const { items, total, direccion_envio } = req.body;
 
-    if (!items || items.length === 0 || !total) {
-        return res.status(400).json({ message: 'Faltan datos para crear el pedido (items, total).' });
+    // Validación robusta de los datos de entrada.
+    if (!items || !Array.isArray(items) || items.length === 0 || !total || !direccion_envio) {
+        return res.status(400).json({ message: 'Datos del pedido incompletos. Se requieren items, total y dirección de envío.' });
     }
 
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
-        // 1. Crear la orden principal
+        // 1. Crear la orden principal en la tabla 'ordenes'.
         const ordenQuery = `
-            INSERT INTO ordenes (id_usuario, total, estado) 
-            VALUES ($1, $2, 'Completado') 
+            INSERT INTO ordenes (id_comprador, total, estado_orden, direccion_envio)
+            VALUES ($1, $2, 'Pendiente', $3)
             RETURNING id, fecha_orden;
         `;
-        const ordenResult = await client.query(ordenQuery, [id_usuario, total]);
+        const ordenResult = await client.query(ordenQuery, [id_comprador, total, direccion_envio]);
         const nuevaOrden = ordenResult.rows[0];
         const id_orden_nueva = nuevaOrden.id;
 
-        // 2. Insertar cada item en detalles_orden y actualizar el stock
+        // 2. Iterar sobre cada producto del carrito para guardarlo en 'detalles_orden'.
         for (const item of items) {
-            // Insertar en detalles_orden
-            const detalleQuery = `
-                INSERT INTO detalles_orden (id_orden, id_publicacion, cantidad, precio_unitario) 
-                VALUES ($1, $2, $3, $4);
-            `;
-            await client.query(detalleQuery, [id_orden_nueva, item.id_publicacion, item.cantidad, item.precio]);
+            // CORRECCIÓN CRÍTICA: Calcular el subtotal para cada ítem.
+            const subtotal = item.cantidad * item.precio;
 
-            // Actualizar el stock en la tabla de publicaciones
+            // Verificar que hay stock suficiente antes de continuar.
+            const stockCheck = await client.query('SELECT stock FROM publicaciones WHERE id = $1 FOR UPDATE', [item.id_publicacion]);
+            if (stockCheck.rows.length === 0 || stockCheck.rows[0].stock < item.cantidad) {
+                throw new Error(`Stock insuficiente para el producto ID ${item.id_publicacion}.`);
+            }
+
+            // Insertar en 'detalles_orden', AHORA INCLUYENDO EL SUBTOTAL.
+            const detalleQuery = `
+                INSERT INTO detalles_orden (id_orden, id_publicacion, cantidad, precio_unitario, subtotal)
+                VALUES ($1, $2, $3, $4, $5);
+            `;
+            await client.query(detalleQuery, [id_orden_nueva, item.id_publicacion, item.cantidad, item.precio, subtotal]);
+
+            // Actualizar el stock en la tabla de publicaciones.
             const stockUpdateQuery = `
-                UPDATE publicaciones 
-                SET stock = stock - $1 
-                WHERE id = $2;
+                UPDATE publicaciones SET stock = stock - $1 WHERE id = $2;
             `;
             await client.query(stockUpdateQuery, [item.cantidad, item.id_publicacion]);
         }
 
-        await client.query('COMMIT');
+        await client.query('COMMIT'); // Si todo sale bien, se confirman los cambios.
         res.status(201).json({
             message: 'Pedido creado exitosamente.',
             pedido: {
@@ -667,14 +676,13 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
         });
 
     } catch (err) {
-        await client.query('ROLLBACK');
+        await client.query('ROLLBACK'); // Si algo falla, se deshacen todos los cambios.
         console.error("Error en la transacción al crear pedido:", err.stack);
-        res.status(500).json({ message: 'Error interno del servidor al crear el pedido.' });
+        res.status(500).json({ message: err.message || 'Error interno del servidor al crear el pedido.' });
     } finally {
-        client.release();
+        client.release(); // Liberar la conexión a la base de datos.
     }
 });
-
 
 // --- ENDPOINT PARA OBTENER EL HISTORIAL DE PEDIDOS DE UN USUARIO (PROTEGIDO) ---
 app.get('/api/pedidos', verificarToken, async (req, res) => {

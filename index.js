@@ -651,7 +651,6 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
     }
 });
 
-
 // --- ENDPOINT PARA OBTENER EL HISTORIAL DE PEDIDOS DE UN USUARIO (PROTEGIDO) ---
 app.get('/api/pedidos', verificarToken, async (req, res) => {
     const id_comprador_actual = req.user.id;

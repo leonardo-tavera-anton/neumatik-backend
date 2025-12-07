@@ -617,55 +617,48 @@ app.get('/api/usuario/publicaciones', verificarToken, async (req, res) => {
 
 // --- ENDPOINT PARA CREAR UN NUEVO PEDIDO (PROTEGIDO) ---
 app.post('/api/pedidos', verificarToken, async (req, res) => {
-    // Usamos 'id_comprador' para que coincida con el nombre de la columna en la tabla 'ordenes'.
     const id_comprador = req.user.id;
     const { items, total, direccion_envio } = req.body;
 
-    // Validación robusta de los datos de entrada.
     if (!items || !Array.isArray(items) || items.length === 0 || !total || !direccion_envio) {
-        return res.status(400).json({ message: 'Datos del pedido incompletos. Se requieren items, total y dirección de envío.' });
+        return res.status(400).json({ message: 'Datos del pedido incompletos (items, total, direccion_envio).' });
     }
 
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
-        // 1. Crear la orden principal en la tabla 'ordenes'.
         const ordenQuery = `
-            INSERT INTO ordenes (id_comprador, total, estado_orden, direccion_envio)
-            VALUES ($1, $2, 'Pendiente', $3)
+            INSERT INTO ordenes (id_comprador, total, estado_orden, direccion_envio) 
+            VALUES ($1, $2, 'Pendiente', $3) 
             RETURNING id, fecha_orden;
         `;
         const ordenResult = await client.query(ordenQuery, [id_comprador, total, direccion_envio]);
         const nuevaOrden = ordenResult.rows[0];
         const id_orden_nueva = nuevaOrden.id;
 
-        // 2. Iterar sobre cada producto del carrito para guardarlo en 'detalles_orden'.
         for (const item of items) {
-            // CORRECCIÓN CRÍTICA: Calcular el subtotal para cada ítem.
             const subtotal = item.cantidad * item.precio;
 
-            // Verificar que hay stock suficiente antes de continuar.
-            const stockCheck = await client.query('SELECT stock FROM publicaciones WHERE id = $1 FOR UPDATE', [item.id_publicacion]);
+            // CORRECCIÓN CRÍTICA: Se añade ::UUID para convertir el string al tipo de dato correcto para PostgreSQL.
+            const stockCheck = await client.query('SELECT stock FROM publicaciones WHERE id = $1::UUID FOR UPDATE', [item.id_publicacion]);
             if (stockCheck.rows.length === 0 || stockCheck.rows[0].stock < item.cantidad) {
                 throw new Error(`Stock insuficiente para el producto ID ${item.id_publicacion}.`);
             }
 
-            // Insertar en 'detalles_orden', AHORA INCLUYENDO EL SUBTOTAL.
             const detalleQuery = `
-                INSERT INTO detalles_orden (id_orden, id_publicacion, cantidad, precio_unitario, subtotal)
-                VALUES ($1, $2, $3, $4, $5);
+                INSERT INTO detalles_orden (id_orden, id_publicacion, cantidad, precio_unitario, subtotal) 
+                VALUES ($1, $2::UUID, $3, $4, $5);
             `;
             await client.query(detalleQuery, [id_orden_nueva, item.id_publicacion, item.cantidad, item.precio, subtotal]);
 
-            // Actualizar el stock en la tabla de publicaciones.
             const stockUpdateQuery = `
-                UPDATE publicaciones SET stock = stock - $1 WHERE id = $2;
+                UPDATE publicaciones SET stock = stock - $1 WHERE id = $2::UUID;
             `;
             await client.query(stockUpdateQuery, [item.cantidad, item.id_publicacion]);
         }
 
-        await client.query('COMMIT'); // Si todo sale bien, se confirman los cambios.
+        await client.query('COMMIT');
         res.status(201).json({
             message: 'Pedido creado exitosamente.',
             pedido: {
@@ -676,13 +669,14 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
         });
 
     } catch (err) {
-        await client.query('ROLLBACK'); // Si algo falla, se deshacen todos los cambios.
+        await client.query('ROLLBACK');
         console.error("Error en la transacción al crear pedido:", err.stack);
         res.status(500).json({ message: err.message || 'Error interno del servidor al crear el pedido.' });
     } finally {
-        client.release(); // Liberar la conexión a la base de datos.
+        client.release();
     }
 });
+
 
 // --- ENDPOINT PARA OBTENER EL HISTORIAL DE PEDIDOS DE UN USUARIO (PROTEGIDO) ---
 app.get('/api/pedidos', verificarToken, async (req, res) => {

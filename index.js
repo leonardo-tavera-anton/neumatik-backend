@@ -581,37 +581,6 @@ app.post('/api/ia/analizar-para-crear', verificarToken, upload.single('image'), 
 });
 
 // =======================================================
-// === ENDPOINT PARA OBTENER LAS PUBLICACIONES DE UN USUARIO (PROTEGIDO) ===
-// =======================================================
-app.get('/api/usuario/publicaciones', verificarToken, async (req, res) => {
-    const id_vendedor = req.user.id; // Obtenemos el ID del usuario desde el token verificado
-
-    try {
-        const queryText = `
-            SELECT 
-                p.id AS publicacion_id, p.precio, p.condicion, p.stock, p.ubicacion_ciudad, 
-                p.creado_en AS fecha_publicacion, pr.nombre_parte, pr.numero_oem, 
-                u.nombre AS vendedor_nombre, u.apellido AS vendedor_apellido, c.nombre_categoria, 
-                (SELECT url FROM fotos_publicacion WHERE id_publicacion = p.id AND es_principal = TRUE LIMIT 1) AS foto_principal_url, 
-                ia.validacion_exitosa AS ia_verificado 
-            FROM publicaciones p 
-            JOIN productos pr ON p.id_producto = pr.id 
-            JOIN categorias c ON pr.id_categoria = c.id_categoria 
-            JOIN usuarios u ON p.id_vendedor = u.id 
-            LEFT JOIN analisis_ia ia ON p.id = ia.id_publicacion 
-            WHERE p.id_vendedor = $1
-            ORDER BY p.creado_en DESC;`;
-        
-        const result = await pool.query(queryText, [id_vendedor]);
-        res.json(result.rows);
-
-    } catch (err) {
-        console.error("Error al obtener las publicaciones del usuario:", err);
-        res.status(500).json({ message: 'Error interno del servidor al consultar tus publicaciones.' });
-    }
-});
-
-// =======================================================
 // === ENDPOINTS PARA GESTIÓN DE PEDIDOS (ÓRDENES) ===
 // =======================================================
 
@@ -628,19 +597,21 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
     try {
         await client.query('BEGIN');
 
+        // 1. Crear la orden principal
         const ordenQuery = `
             INSERT INTO ordenes (id_comprador, total, estado_orden, direccion_envio) 
-            VALUES ($1, $2, 'Pendiente', $3) 
+            -- CORRECCIÓN FINAL #1: Se añade ::UUID para convertir el id_comprador a tipo UUID.
+            VALUES ($1::UUID, $2, 'Pendiente', $3) 
             RETURNING id, fecha_orden;
         `;
         const ordenResult = await client.query(ordenQuery, [id_comprador, total, direccion_envio]);
         const nuevaOrden = ordenResult.rows[0];
         const id_orden_nueva = nuevaOrden.id;
 
+        // 2. Insertar cada item en detalles_orden
         for (const item of items) {
             const subtotal = item.cantidad * item.precio;
 
-            // CORRECCIÓN CRÍTICA: Se añade ::UUID para convertir el string al tipo de dato correcto para PostgreSQL.
             const stockCheck = await client.query('SELECT stock FROM publicaciones WHERE id = $1::UUID FOR UPDATE', [item.id_publicacion]);
             if (stockCheck.rows.length === 0 || stockCheck.rows[0].stock < item.cantidad) {
                 throw new Error(`Stock insuficiente para el producto ID ${item.id_publicacion}.`);
@@ -680,42 +651,35 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
 
 // --- ENDPOINT PARA OBTENER EL HISTORIAL DE PEDIDOS DE UN USUARIO (PROTEGIDO) ---
 app.get('/api/pedidos', verificarToken, async (req, res) => {
-    const id_usuario = req.user.id;
+    const id_comprador_actual = req.user.id;
 
     try {
-        // Consulta para obtener las órdenes del usuario
-        const ordenesQuery = `
+        // CORRECCIÓN FINAL #2: Se usa 'id_comprador' para coincidir con la base de datos.
+        // Y se usa JSON_AGG para hacer la consulta más eficiente.
+        const query = `
             SELECT 
                 o.id, 
                 o.fecha_orden as fecha, 
                 o.total,
                 u.nombre as usuario_nombre,
-                u.correo as usuario_correo
+                u.correo as usuario_correo,
+                (SELECT json_agg(json_build_object(
+                    'nombre_parte', p.nombre_parte, 
+                    'cantidad', d.cantidad, 
+                    'precio', d.precio_unitario
+                ))
+                 FROM detalles_orden d
+                 JOIN publicaciones pub ON d.id_publicacion = pub.id
+                 JOIN productos p ON pub.id_producto = p.id
+                 WHERE d.id_orden = o.id) as items
             FROM ordenes o
-            JOIN usuarios u ON o.id_usuario = u.id
-            WHERE o.id_usuario = $1
+            JOIN usuarios u ON o.id_comprador = u.id
+            WHERE o.id_comprador = $1::UUID
             ORDER BY o.fecha_orden DESC;
         `;
-        const ordenesResult = await pool.query(ordenesQuery, [id_usuario]);
-        let ordenes = ordenesResult.rows;
-
-        // Para cada orden, obtener sus items
-        for (let i = 0; i < ordenes.length; i++) {
-            const detallesQuery = `
-                SELECT 
-                    d.cantidad, 
-                    d.precio_unitario as precio, 
-                    p.nombre_parte 
-                FROM detalles_orden d
-                JOIN publicaciones pub ON d.id_publicacion = pub.id
-                JOIN productos p ON pub.id_producto = p.id
-                WHERE d.id_orden = $1;
-            `;
-            const detallesResult = await pool.query(detallesQuery, [ordenes[i].id]);
-            ordenes[i].items = detallesResult.rows;
-        }
-
-        res.json(ordenes);
+        
+        const result = await pool.query(query, [id_comprador_actual]);
+        res.json(result.rows);
 
     } catch (err) {
         console.error("Error al obtener el historial de pedidos:", err.stack);

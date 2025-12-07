@@ -600,28 +600,40 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
         // 1. Crear la orden principal
         const ordenQuery = `
             INSERT INTO ordenes (id_comprador, total, estado_orden, direccion_envio) 
-            -- CORRECCIÓN: Convertir el id_comprador de String a UUID.
             VALUES ($1::UUID, $2, 'Pendiente', $3) 
             RETURNING id, fecha_orden;
         `;
         const ordenResult = await client.query(ordenQuery, [id_comprador, total, direccion_envio]);
         const nuevaOrden = ordenResult.rows[0];
+         if (!nuevaOrden) {
+            // Esto no debería ocurrir si la inserción es exitosa, pero es una guarda de seguridad.
+            throw new Error('No se pudo crear la orden principal.');
+        }
         const id_orden_nueva = nuevaOrden.id;
 
-        // 2. Insertar cada item en detalles_orden
+        // 2. Insertar cada item en detalles_orden y validar
         for (const item of items) {
+            // --- Validación robusta para cada item ---
+            if (!item.id_publicacion || typeof item.cantidad !== 'number' || typeof item.precio !== 'number') {
+                throw new Error('Cada item del pedido debe tener un id_publicacion, cantidad y precio válidos.');
+            }
+
             const subtotal = item.cantidad * item.precio;
 
-            // CORRECCIÓN: Convertir id_publicacion de String a UUID en la consulta de stock.
             const stockCheck = await client.query('SELECT stock FROM publicaciones WHERE id = $1::UUID FOR UPDATE', [item.id_publicacion]);
-            if (stockCheck.rows.length === 0 || stockCheck.rows[0].stock < item.cantidad) {
+            
+            // --- Mensaje de error mejorado ---
+            if (stockCheck.rows.length === 0) {
+                throw new Error(`El producto con ID ${item.id_publicacion} no fue encontrado.`);
+            }
+            if (stockCheck.rows[0].stock < item.cantidad) {
                 throw new Error(`Stock insuficiente para el producto ID ${item.id_publicacion}.`);
             }
 
-            // CORRECCIÓN: Convertir id_publicacion de String a UUID en la inserción del detalle.
+            // --- CORRECCIÓN CLAVE: Añadir ::UUID para id_orden ---
             const detalleQuery = `
                 INSERT INTO detalles_orden (id_orden, id_publicacion, cantidad, precio_unitario, subtotal) 
-                VALUES ($1, $2::UUID, $3, $4, $5);
+                VALUES ($1::UUID, $2::UUID, $3, $4, $5);
             `;
             await client.query(detalleQuery, [id_orden_nueva, item.id_publicacion, item.cantidad, item.precio, subtotal]);
 

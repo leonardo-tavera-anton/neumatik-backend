@@ -701,6 +701,49 @@ app.get('/api/pedidos', verificarToken, async (req, res) => {
     }
 });
 
+// =======================================================
+// === ENDPOINTS PARA GESTIÓN DE DIRECCIONES (NUEVO) ===
+// =======================================================
+
+// --- OBTENER DIRECCIONES DEL USUARIO (PROTEGIDO) ---
+app.get('/api/usuario/direcciones', verificarToken, async (req, res) => {
+    const id_usuario = req.user.id;
+    try {
+        const result = await pool.query(
+            'SELECT * FROM direcciones_envio WHERE id_usuario = $1 ORDER BY creado_en DESC',
+            [id_usuario]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error al obtener direcciones:", err.stack);
+        res.status(500).json({ message: 'Error interno al obtener las direcciones.' });
+    }
+});
+
+// --- AÑADIR NUEVA DIRECCIÓN (PROTEGIDO) ---
+app.post('/api/usuario/direcciones', verificarToken, async (req, res) => {
+    const id_usuario = req.user.id;
+    const { direccion, ciudad, referencia, pais } = req.body;
+
+    if (!direccion || !ciudad) {
+        return res.status(400).json({ message: 'La dirección y la ciudad son obligatorias.' });
+    }
+
+    try {
+        const query = `
+            INSERT INTO direcciones_envio (id_usuario, direccion, ciudad, referencia, pais)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *;
+        `;
+        const result = await pool.query(query, [id_usuario, direccion, ciudad, referencia || '', pais || 'Perú']);
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error("Error al crear dirección:", err.stack);
+        res.status(500).json({ message: 'Error interno al guardar la dirección.' });
+    }
+});
+
+
 // ------------------------
 // RUTAS DE TABLAS SIMPLES (PARA DEBUG)
 // ------------------------

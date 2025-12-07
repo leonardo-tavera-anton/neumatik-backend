@@ -600,7 +600,7 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
         // 1. Crear la orden principal
         const ordenQuery = `
             INSERT INTO ordenes (id_comprador, total, estado_orden, direccion_envio) 
-            -- CORRECCIÓN: Convertir el id_comprador de String a UUID.
+            -- CORRECCIÓN: Se asegura que el id_comprador se convierta a UUID
             VALUES ($1::UUID, $2, 'Pendiente', $3) 
             RETURNING id, fecha_orden;
         `;
@@ -612,20 +612,17 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
         for (const item of items) {
             const subtotal = item.cantidad * item.precio;
 
-            // CORRECCIÓN: Convertir id_publicacion de String a UUID en la consulta de stock.
             const stockCheck = await client.query('SELECT stock FROM publicaciones WHERE id = $1::UUID FOR UPDATE', [item.id_publicacion]);
             if (stockCheck.rows.length === 0 || stockCheck.rows[0].stock < item.cantidad) {
                 throw new Error(`Stock insuficiente para el producto ID ${item.id_publicacion}.`);
             }
 
-            // CORRECCIÓN: Convertir id_publicacion de String a UUID en la inserción del detalle.
             const detalleQuery = `
                 INSERT INTO detalles_orden (id_orden, id_publicacion, cantidad, precio_unitario, subtotal) 
                 VALUES ($1, $2::UUID, $3, $4, $5);
             `;
             await client.query(detalleQuery, [id_orden_nueva, item.id_publicacion, item.cantidad, item.precio, subtotal]);
 
-            // CORRECCIÓN: Convertir id_publicacion de String a UUID en la actualización del stock.
             const stockUpdateQuery = `
                 UPDATE publicaciones SET stock = stock - $1 WHERE id = $2::UUID;
             `;
@@ -648,6 +645,44 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
         res.status(500).json({ message: err.message || 'Error interno del servidor al crear el pedido.' });
     } finally {
         client.release();
+    }
+});
+
+
+// --- ENDPOINT PARA OBTENER EL HISTORIAL DE PEDIDOS DE UN USUARIO (PROTEGIDO) ---
+app.get('/api/pedidos', verificarToken, async (req, res) => {
+    const id_comprador_actual = req.user.id;
+
+    try {
+        // CORRECCIÓN: Se usa 'id_comprador' para coincidir con la base de datos y se convierte a UUID.
+        const query = `
+            SELECT 
+                o.id, 
+                o.fecha_orden as fecha, 
+                o.total,
+                u.nombre as usuario_nombre,
+                u.correo as usuario_correo,
+                (SELECT json_agg(json_build_object(
+                    'nombre_parte', p.nombre_parte, 
+                    'cantidad', d.cantidad, 
+                    'precio', d.precio_unitario
+                ))
+                 FROM detalles_orden d
+                 JOIN publicaciones pub ON d.id_publicacion = pub.id
+                 JOIN productos p ON pub.id_producto = p.id
+                 WHERE d.id_orden = o.id) as items
+            FROM ordenes o
+            JOIN usuarios u ON o.id_comprador = u.id
+            WHERE o.id_comprador = $1::UUID
+            ORDER BY o.fecha_orden DESC;
+        `;
+        
+        const result = await pool.query(query, [id_comprador_actual]);
+        res.json(result.rows);
+
+    } catch (err) {
+        console.error("Error al obtener el historial de pedidos:", err.stack);
+        res.status(500).json({ message: 'Error interno del servidor al obtener el historial.' });
     }
 });
 

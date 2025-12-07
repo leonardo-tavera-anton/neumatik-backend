@@ -611,6 +611,115 @@ app.get('/api/usuario/publicaciones', verificarToken, async (req, res) => {
     }
 });
 
+// =======================================================
+// === ENDPOINTS PARA GESTIÓN DE PEDIDOS (ÓRDENES) ===
+// =======================================================
+
+// --- ENDPOINT PARA CREAR UN NUEVO PEDIDO (PROTEGIDO) ---
+app.post('/api/pedidos', verificarToken, async (req, res) => {
+    const id_usuario = req.user.id;
+    const { items, total } = req.body; // 'items' debe ser un array de { id_publicacion, cantidad, precio }
+
+    if (!items || items.length === 0 || !total) {
+        return res.status(400).json({ message: 'Faltan datos para crear el pedido (items, total).' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. Crear la orden principal
+        const ordenQuery = `
+            INSERT INTO ordenes (id_usuario, total, estado) 
+            VALUES ($1, $2, 'Completado') 
+            RETURNING id, fecha_orden;
+        `;
+        const ordenResult = await client.query(ordenQuery, [id_usuario, total]);
+        const nuevaOrden = ordenResult.rows[0];
+        const id_orden_nueva = nuevaOrden.id;
+
+        // 2. Insertar cada item en detalles_orden y actualizar el stock
+        for (const item of items) {
+            // Insertar en detalles_orden
+            const detalleQuery = `
+                INSERT INTO detalles_orden (id_orden, id_publicacion, cantidad, precio_unitario) 
+                VALUES ($1, $2, $3, $4);
+            `;
+            await client.query(detalleQuery, [id_orden_nueva, item.id_publicacion, item.cantidad, item.precio]);
+
+            // Actualizar el stock en la tabla de publicaciones
+            const stockUpdateQuery = `
+                UPDATE publicaciones 
+                SET stock = stock - $1 
+                WHERE id = $2;
+            `;
+            await client.query(stockUpdateQuery, [item.cantidad, item.id_publicacion]);
+        }
+
+        await client.query('COMMIT');
+        res.status(201).json({
+            message: 'Pedido creado exitosamente.',
+            pedido: {
+                id: id_orden_nueva,
+                fecha: nuevaOrden.fecha_orden,
+                total: total,
+            }
+        });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error("Error en la transacción al crear pedido:", err.stack);
+        res.status(500).json({ message: 'Error interno del servidor al crear el pedido.' });
+    } finally {
+        client.release();
+    }
+});
+
+
+// --- ENDPOINT PARA OBTENER EL HISTORIAL DE PEDIDOS DE UN USUARIO (PROTEGIDO) ---
+app.get('/api/pedidos', verificarToken, async (req, res) => {
+    const id_usuario = req.user.id;
+
+    try {
+        // Consulta para obtener las órdenes del usuario
+        const ordenesQuery = `
+            SELECT 
+                o.id, 
+                o.fecha_orden as fecha, 
+                o.total,
+                u.nombre as usuario_nombre,
+                u.correo as usuario_correo
+            FROM ordenes o
+            JOIN usuarios u ON o.id_usuario = u.id
+            WHERE o.id_usuario = $1
+            ORDER BY o.fecha_orden DESC;
+        `;
+        const ordenesResult = await pool.query(ordenesQuery, [id_usuario]);
+        let ordenes = ordenesResult.rows;
+
+        // Para cada orden, obtener sus items
+        for (let i = 0; i < ordenes.length; i++) {
+            const detallesQuery = `
+                SELECT 
+                    d.cantidad, 
+                    d.precio_unitario as precio, 
+                    p.nombre_parte 
+                FROM detalles_orden d
+                JOIN publicaciones pub ON d.id_publicacion = pub.id
+                JOIN productos p ON pub.id_producto = p.id
+                WHERE d.id_orden = $1;
+            `;
+            const detallesResult = await pool.query(detallesQuery, [ordenes[i].id]);
+            ordenes[i].items = detallesResult.rows;
+        }
+
+        res.json(ordenes);
+
+    } catch (err) {
+        console.error("Error al obtener el historial de pedidos:", err.stack);
+        res.status(500).json({ message: 'Error interno del servidor al obtener el historial.' });
+    }
+});
 
 // ------------------------
 // RUTAS DE TABLAS SIMPLES (PARA DEBUG)

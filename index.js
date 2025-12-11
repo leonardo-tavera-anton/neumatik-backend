@@ -5,7 +5,7 @@ import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from 'multer'; //sirve para manejar archivos en las peticiones
-dotenv.config();
+dotenv.config(); //para gestion d variables d entorno
 
 
 //configuracion de multer para manejo de archivos en memoria
@@ -13,7 +13,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
 
 
 //importante para usar json en las peticiones

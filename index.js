@@ -23,7 +23,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'mi_clave_secreta_super_segura_2025
 // MIDDLEWARES (intermediario entre los diversos servicios q utilizamos para neumatik)
 // ------------------------
 
-//CONFIGURACION DE CORS (Cross-Origin Resource Sharing).....
+//CONFIGURACION DE CORS (Cross-Origin Resource Sharing)..... uso d cabeceras http respuestas mas seguras pero limita ciertas solicitudes
 //el intercambio de recursos de origen cruzado permite que los recursos restringidos
 //en una página web se soliciten desde otro dominio fuera del dominio desde el cual se sirvip el primer recurso.
 const allowedOrigins = [
@@ -38,7 +38,7 @@ const corsOptions = {
     if (!origin || allowedOrigins.some(allowed => origin.startsWith(allowed))) {
       callback(null, true);
     } else {
-      callback(new Error('No permitido por la política de CORS'));
+      callback(new Error('No permitido por la politica de CORS :/'));
     }
   },
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',

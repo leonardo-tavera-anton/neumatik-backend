@@ -1,15 +1,14 @@
 import express from "express";
-import pool from "./db.js"; // Importa la conexión a la DB
+import pool from "./db.js";
 import dotenv from "dotenv";
 import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import multer from 'multer';
-// Se añade la configuración de Multer para poder recibir archivos (imágenes).
+import multer from 'multer'; //sirve para manejar archivos en las peticiones
 dotenv.config();
 
 
-// Configuración de Multer para poder recibir archivos (imágenes).
+//configuracion de multer para manejo de archivos en memoria
 const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
@@ -17,17 +16,19 @@ const PORT = process.env.PORT || 3000;
 
 
 
-// IMPORTANTE DE SEGURIDAD
-const JWT_SECRET = process.env.JWT_SECRET || 'mi_clave_secreta_super_segura_2025';
+//importante para usar json en las peticiones
+const JWT_SECRET = process.env.JWT_SECRET || 'mi_clave_secreta_super_segura_2025'; //d ejemplo
 
 // ------------------------
-// MIDDLEWARE
+// MIDDLEWARES (intermediario entre los diversos servicios q utilizamos para neumatik)
 // ------------------------
 
-// --- CONFIGURACIÓN DE CORS (Cross-Origin Resource Sharing) ---
+//CONFIGURACION DE CORS (Cross-Origin Resource Sharing).....
+//el intercambio de recursos de origen cruzado permite que los recursos restringidos
+//en una página web se soliciten desde otro dominio fuera del dominio desde el cual se sirvip el primer recurso.
 const allowedOrigins = [
-  'https://neumatik-frontend.web.app', // Dominio de producción
-  'http://localhost:8080',            // Local
+  'https://neumatik-frontend.web.app', //dominio de produccion
+  'http://localhost:8080',            //local
   'http://localhost',
   'http://127.0.0.1',
 ];
@@ -47,7 +48,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Middleware para verificar el token (para rutas protegidas)
+//middleware para verificar el token (para rutas protegidas)
 const verificarToken = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -69,9 +70,9 @@ const verificarToken = (req, res, next) => {
     }
 };
 
-// ------------------------
-// MENÚ INICIO (Ruta Raíz)
-// ------------------------
+// -----------------------------------
+// MENU INICIO (Ruta inicial Raiz)
+// -----------------------------------
 app.get("/", (req, res) => {
     res.send(`
         <h1>Backend Neumatik (Autopartes)</h1>
@@ -94,9 +95,8 @@ app.get("/", (req, res) => {
 // -------------------------------------------------------
 // ENDPOINT DE REGISTRO DE USUARIO (POST /api/registro)
 // -------------------------------------------------------
-app.post('/api/registro', async (req, res) => {
-    // SIMPLIFICACIÓN: Se elimina 'es_vendedor'
-    const { nombre, apellido, correo, contrasena, telefono } = req.body; // Permite la comunicacion con el front si no hay esto no se podra registrar
+app.post('/api/registro', async (req, res) => { //ya no hay la opcion si es vendedor aunq en el front aun se muestra
+    const { nombre, apellido, correo, contrasena, telefono } = req.body; //permite la comunicacion con el front si no hay esto no se podra registrar
 
     if (!correo || !contrasena || !nombre || !apellido) {
         return res.status(400).json({ message: 'Faltan campos obligatorios: nombre, apellido, correo y contraseña.' });
@@ -111,10 +111,8 @@ app.post('/api/registro', async (req, res) => {
             return res.status(409).json({ message: 'El correo electrónico ya está registrado.' });
         }
 
-        // SIMPLIFICACIÓN: Se elimina 'es_vendedor' de la consulta
         const newUserQuery = `INSERT INTO usuarios (nombre, apellido, correo, contrasena_hash, telefono, creado_en, ultima_conexion) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) RETURNING *;`;
         
-        // SIMPLIFICACIÓN: Se elimina 'es_vendedor' de los parámetros
         const newUserResult = await pool.query(newUserQuery, [
             nombre,
             apellido,
@@ -125,7 +123,6 @@ app.post('/api/registro', async (req, res) => {
 
         const newUser = newUserResult.rows[0];
 
-        // SIMPLIFICACIÓN: Se elimina 'esVendedor' del token
         const token = jwt.sign(
             { id: newUser.id, correo: newUser.correo },
             JWT_SECRET,
@@ -148,7 +145,7 @@ app.post('/api/registro', async (req, res) => {
 });
 
 // -------------------------------------------------------
-// ENDPOINT DE INICIO DE SESIÓN (POST /api/auth/login)
+// ENDPOINT DE INICIO DE SESION (POST /api/auth/login)
 // -------------------------------------------------------
 app.post('/api/auth/login', async (req, res) => {
     const { correo, contrasena } = req.body;
@@ -173,8 +170,6 @@ app.post('/api/auth/login', async (req, res) => {
         if (!isPasswordValid) {
             return res.status(401).send('Credenciales inválidas (correo o contraseña incorrectos).');
         }
-
-        // SIMPLIFICACIÓN: Se elimina 'esVendedor' del token
         const token = jwt.sign(
             { id: user.id, correo: user.correo },
             JWT_SECRET,
@@ -195,13 +190,12 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// -------------------------------------------------------
+// ---------------------------------------
 // ENDPOINT PROTEGIDO PARA OBTENER PERFIL
-// -------------------------------------------------------
+// ---------------------------------------
 app.get('/api/usuario/perfil', verificarToken, async (req, res) => {
     try {
         const userId = req.user.id;
-        // SIMPLIFICACIÓN: Se elimina 'es_vendedor' de la consulta
         const result = await pool.query(
             'SELECT id, nombre, apellido, correo, telefono, ultima_conexion FROM usuarios WHERE id = $1',
             [userId]
@@ -223,20 +217,19 @@ app.get('/api/usuario/perfil', verificarToken, async (req, res) => {
     }
 });
 
-// =======================================================
-// === ENDPOINT NUEVO PARA ACTUALIZAR EL PERFIL DEL USUARIO (PROTEGIDO) ===
-// =======================================================
+// ======================================================
+// ENDPOINT NUEVO PARA ACTUALIZAR EL PERFIL DEL USUARIO 
+// ======================================================
 app.put('/api/usuario/perfil', verificarToken, async (req, res) => {
     const userId = req.user.id;
     const { nombre, apellido, telefono } = req.body;
 
-    // Validación básica
+    //validar campos obligatorios
     if (!nombre || !apellido) {
         return res.status(400).json({ message: 'El nombre y el apellido son obligatorios.' });
     }
 
     try {
-        // SIMPLIFICACIÓN: Se elimina 'es_vendedor' de la cláusula RETURNING
         const updateQuery = `
             UPDATE usuarios 
             SET nombre = $1, apellido = $2, telefono = $3 
@@ -247,7 +240,7 @@ app.put('/api/usuario/perfil', verificarToken, async (req, res) => {
         const result = await pool.query(updateQuery, [
             nombre,
             apellido,
-            telefono || '', // Usar string vacío si el teléfono es nulo o no se envía
+            telefono || '', //si no hay telefono se guarda vacio
             userId
         ]);
 
@@ -326,12 +319,12 @@ app.post('/api/publicaciones', verificarToken, async (req, res) => {
     }
 });
 
-// -------------------------------------------------------
+// -----------------------------------------------
 // ENDPOINT PARA LISTAR TODAS LAS PUBLICACIONES
-// -------------------------------------------------------
+// -----------------------------------------------
 app.get('/api/publicaciones_autopartes', async (req, res) => {
     try {
-        // OPTIMIZACIÓN: Se añade "AND p.stock > 0" para no mostrar productos agotados.
+        //este query AND p.stock > 0 para no llamar productos q tengan stock menor a 0 y por ende no mostrar productos agotados en el home_screen.dart
         const queryText = `
             SELECT 
                 p.id AS publicacion_id, p.precio, p.condicion, p.stock, p.ubicacion_ciudad, 
@@ -355,11 +348,11 @@ app.get('/api/publicaciones_autopartes', async (req, res) => {
     }
 });
 
-// =======================================================
-// === ENDPOINT PARA OBTENER LAS PUBLICACIONES DE UN USUARIO (PROTEGIDO) ===
-// =======================================================
+// =================================================================
+// ENDPOINT PARA OBTENER LAS PUBLICACIONES DE UN USUARIO (PROTEGIDO)
+// =================================================================
 app.get('/api/usuario/publicaciones', verificarToken, async (req, res) => {
-    const id_vendedor_actual = req.user.id; // El ID del usuario autenticado
+    const id_vendedor_actual = req.user.id; //id del usuario autenticado
 
     try {
         const queryText = `
@@ -385,9 +378,9 @@ app.get('/api/usuario/publicaciones', verificarToken, async (req, res) => {
     }
 });
 
-// =======================================================
-// === ENDPOINT PARA DETALLE DE PUBLICACIÓN ===
-// =======================================================
+// =======================================
+//  ENDPOINT PARA DETALLE DE PUBLICACIÓN 
+// =======================================
 app.get('/api/publicaciones/:id', async (req, res) => {
     const { id } = req.params;
 
@@ -422,11 +415,11 @@ app.get('/api/publicaciones/:id', async (req, res) => {
 });
 
 // =======================================================
-// === ENDPOINT PARA ACTUALIZAR UNA PUBLICACIÓN (PROTEGIDO) ===
+// ENDPOINT PARA ACTUALIZAR UNA PUBLICACION (PROTEGIDO)
 // =======================================================
 app.put('/api/publicaciones/:id', verificarToken, async (req, res) => {
-    const { id } = req.params; // ID de la publicación a editar
-    const id_usuario_actual = req.user.id; // ID del usuario que hace la petición
+    const { id } = req.params; //id de la publicación a actualizar
+    const id_usuario_actual = req.user.id; //id del usuario autenticado
 
     const {
         nombre_parte, id_categoria, precio,
@@ -468,11 +461,11 @@ app.put('/api/publicaciones/:id', verificarToken, async (req, res) => {
 
 
 // =======================================================
-// === ENDPOINT PARA ELIMINAR UNA PUBLICACIÓN (PROTEGIDO) ===
+// ENDPOINT PARA ELIMINAR UNA PUBLICACIÓN (PROTEGIDO)
 // =======================================================
 app.delete('/api/publicaciones/:id', verificarToken, async (req, res) => {
-    const { id } = req.params; // ID de la publicación a eliminar
-    const id_usuario_actual = req.user.id; // ID del usuario que hace la petición
+    const { id } = req.params; //id de la publicación a eliminar
+    const id_usuario_actual = req.user.id; //id del usuario autenticado
 
     const client = await pool.connect();
     try {
@@ -510,7 +503,7 @@ app.delete('/api/publicaciones/:id', verificarToken, async (req, res) => {
 });
 
 // =======================================================
-// === ENDPOINT SEGURO PARA ANÁLISIS CON IA (SEPARADO DEL DE CREAR) ===
+// ENDPOINT SEGURO PARA ANALISIS CON IA (SEPARADO DEL DE CREAR)
 // =======================================================
 app.post('/api/ia/analizar-imagen', verificarToken, upload.single('image'), async (req, res) => {
     // 1. Verificamos que se haya subido una imagen.
@@ -569,7 +562,7 @@ app.post('/api/ia/analizar-imagen', verificarToken, upload.single('image'), asyn
 });
 
 // =======================================================
-// === ENDPOINT DE IA PARA AUTOCOMPLETAR FORMULARIO (NUEVO) ===
+// ENDPOINT DE IA PARA AUTOCOMPLETAR FORMULARIO
 // =======================================================
 app.post('/api/ia/analizar-para-crear', verificarToken, upload.single('image'), async (req, res) => {
     if (!req.file) {
@@ -588,7 +581,7 @@ app.post('/api/ia/analizar-para-crear', verificarToken, upload.single('image'), 
             },
         };
 
-        // --- ESTE ES EL NUEVO PROMPT ---
+        // ESTE ES EL NUEVO PROMPT PARA PEDICIONES DE CREACION
         const prompt = "Eres un asistente experto para vendedores de autopartes en la plataforma Neumatik. Tu objetivo es analizar la imagen de una autoparte y extraer la información necesaria para pre-rellenar un formulario de venta. Proporciona tu análisis en español, en formato 'clave: valor'.\n\n" +
             "Incluye únicamente los siguientes puntos:\n" +
             "- Nombre de la pieza: (El nombre más común y comercial para la pieza).\n" +
@@ -612,11 +605,10 @@ app.post('/api/ia/analizar-para-crear', verificarToken, upload.single('image'), 
 });
 
 // =======================================================
-// === ENDPOINTS PARA GESTIÓN DE PEDIDOS (ÓRDENES) ===
+// ENDPOINTS PARA LA GESTION DE PEDIDOS 
 // =======================================================
 
-// --- ENDPOINT PARA CREAR UN NUEVO PEDIDO (PROTEGIDO) ---
-// --- ENDPOINT PARA CREAR UN NUEVO PEDIDO (PROTEGIDO) ---
+// ENDPOINT PARA CREAR UN NUEVO PEDIDO
 app.post('/api/pedidos', verificarToken, async (req, res) => {
     const id_comprador = req.user.id;
     const { items, total, direccion_envio } = req.body;
@@ -630,7 +622,7 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
         await client.query('BEGIN');
 
         // 1. Crear la orden principal
-        // MEJORA: Se añade RETURNING * para obtener todos los datos de la nueva orden.
+        //ese RETURNING * (todos q encuentre) es para obtener todos los datos de la nueva orden
         const ordenQuery = `
             INSERT INTO ordenes (id_comprador, total, estado_orden, direccion_envio) 
             VALUES ($1::UUID, $2, 'Pendiente', $3) 
@@ -674,19 +666,18 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
 
         await client.query('COMMIT');
 
-        // MEJORA: Se construye una respuesta completa que coincide con el modelo Pedido de Flutter.
         const pedidoCompleto = {
             id: nuevaOrden.id,
             fecha: nuevaOrden.fecha_orden,
             total: nuevaOrden.total,
             estado_orden: nuevaOrden.estado_orden,
             direccion_envio: nuevaOrden.direccion_envio,
-            items: [], // La pantalla de éxito no necesita los items, se envía un array vacío.
+            items: [], 
         };
 
         res.status(201).json({
             message: 'Pedido creado exitosamente.',
-            pedido: pedidoCompleto // Se envía el objeto completo.
+            pedido: pedidoCompleto //se envia el objeto completo
         });
 
     } catch (err) {
@@ -698,7 +689,7 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
     }
 });
 
-// --- ENDPOINT PARA CREAR UN NUEVO PEDIDO (PROTEGIDO) ---
+// ENDPOINT PARA CREAR UN NUEVO PEDIDO protegido
 app.post('/api/pedidos', verificarToken, async (req, res) => {
     const id_comprador = req.user.id;
     const { items, total, direccion_envio } = req.body;
@@ -712,7 +703,6 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
         await client.query('BEGIN');
 
         // 1. Crear la orden principal
-        // MEJORA: Se añade RETURNING * para obtener todos los datos de la nueva orden.
         const ordenQuery = `
             INSERT INTO ordenes (id_comprador, total, estado_orden, direccion_envio) 
             VALUES ($1::UUID, $2, 'Pendiente', $3) 
@@ -756,19 +746,19 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
 
         await client.query('COMMIT');
 
-        // MEJORA: Se construye una respuesta completa que coincide con el modelo Pedido de Flutter.
+        //se crea el objeto pedido completo para enviar en la respuesta
         const pedidoCompleto = {
             id: nuevaOrden.id,
             fecha: nuevaOrden.fecha_orden,
             total: nuevaOrden.total,
             estado_orden: nuevaOrden.estado_orden,
             direccion_envio: nuevaOrden.direccion_envio,
-            items: [], // La pantalla de éxito no necesita los items, se envía un array vacío.
+            items: [],
         };
 
         res.status(201).json({
             message: 'Pedido creado exitosamente.',
-            pedido: pedidoCompleto // Se envía el objeto completo.
+            pedido: pedidoCompleto
         });
 
     } catch (err) {
@@ -781,11 +771,11 @@ app.post('/api/pedidos', verificarToken, async (req, res) => {
 });
 
 
-// =======================================================
-// === ENDPOINTS PARA GESTIÓN DE DIRECCIONES (NUEVO) ===
-// =======================================================
+// =======================================
+// ENDPOINTS PARA GESTIÓN DE DIRECCIONES
+// =======================================
 
-// --- OBTENER DIRECCIONES DEL USUARIO (PROTEGIDO) ---
+// OBTENER DIRECCIONES DEL USUARIO PROTEGIDO (PROTEGID)
 app.get('/api/usuario/direcciones', verificarToken, async (req, res) => {
     const id_usuario = req.user.id;
     try {
@@ -800,7 +790,7 @@ app.get('/api/usuario/direcciones', verificarToken, async (req, res) => {
     }
 });
 
-// --- AÑADIR NUEVA DIRECCIÓN (PROTEGIDO) ---
+//AÑADIR NUEVA DIRECCION (PROTEGIDO)
 app.post('/api/usuario/direcciones', verificarToken, async (req, res) => {
     const id_usuario = req.user.id;
     const { direccion, ciudad, referencia, pais } = req.body;
@@ -825,7 +815,7 @@ app.post('/api/usuario/direcciones', verificarToken, async (req, res) => {
 
 
 // ------------------------
-// RUTAS DE TABLAS SIMPLES (PARA DEBUG)
+// RUTAS DE TABLAS SIMPLES (PARA DEBUGEAR)
 // ------------------------
 const tablas = [
     "usuarios", "categorias", "marcas_vehiculo", "modelos_vehiculo",
@@ -846,9 +836,9 @@ tablas.forEach(tabla => {
 });
 
 
-// ------------------------
+// ================
 // INICIAR SERVIDOR
-// ------------------------
+// ================
 app.listen(PORT, () => {
     console.log(`Servidor corriendo en puerto ${PORT}`);
 });
